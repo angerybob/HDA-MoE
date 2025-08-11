@@ -1,0 +1,3 @@
+[submodule "fastchat"]
+	path = fastchat
+	url = git@github.com:angerybob/fastchat.git
