@@ -23,7 +23,7 @@ cd fastchat
 pip install -e ".[model_worker,llm_judge]"
 ```
 
-### 2. 获得专家激活数据
+### 2. 获得专家激活数据与adaptive gating
 
 ```bash
 cd fastchat/fastchat/llm_judge
@@ -32,6 +32,32 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python3 gen_model_answer.py --model-path /o
 `--num-gpus-per-model`：一个模型放在几张卡上（张量并行维度）
 `--num-gpus-total`：一共几张卡（对应`CUDA_VISIBLE_DEVICES`一共几个编号）
 `--num-gpus-total/--num-gpus-per-model`：数据并行维度
+`fastchat/fastchat/llm_judge/modeling_deepseek.py`中是具体的推理流程
+
+跑出来的trace放在`expert_trace/ds/adaptive`目录下，具体命名可以在`fastchat/fastchat/llm_judge/gen_model_answer.py`修改相关代码
+
+修改不同batch需要在两个地方同时修改
+
+`fastchat/fastchat/llm_judge/gen_model_answer.py`中：
+```python
+                prompt = conv.get_prompt()
+                batch = 32
+                inputs = tokenizer([prompt]*batch,return_tensors="pt",padding=True)
+```
+
+`fastchat/fastchat/llm_judge/modeling_deepseek.py`中：
+```python
+        if scores.shape[0]==32:
+```
+
+adaptive gating 的两个超参数：
+`fastchat/fastchat/llm_judge/modeling_deepseek.py`
+```python
+            reward_comp = -1e3
+            reward_comm = -5e-5
+```
+
+adaptive gating 的评估可以在`evaluation/scripts/adaptive.py`的基础上修改
 
 ### 3. 生成部署策略（Generate Deployment Strategy）
 
