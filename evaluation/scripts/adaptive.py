@@ -132,9 +132,9 @@ BWmem=625e9
 L=1024
 t_inf=comp_overhead(optimizer.comp,optimizer.D,batch,optimizer.h,L,optimizer.IS/optimizer.h,optimizer.e)+mem_overhead(BWmem,optimizer.D,batch,optimizer.h,L,optimizer.IS/optimizer.h,optimizer.E)
 k=1
-#pdb.set_trace()
+
 while optimizer.optimal_broadcast_chunk(k=k)<t_inf:
-    #pdb.set_trace()
+
     k+=1
 k-=1
 print(f"Number of experts to pre-broadcast: {k:.0f}")
@@ -174,7 +174,7 @@ for layer_id in tqdm(range(optimizer.layer)):
     if len(s)==batch:
         random_samples=s
 
-        #next_samples=pre_sample[str(layer_id+optimizer.mlp_first)][sample_id]
+        next_samples=pre_sample[str(layer_id+optimizer.mlp_first)][sample_id]
         adaptive_random_samples=adaptive_sample[str(layer_id+optimizer.mlp_first)][sample_id]
         adaptive_next_samples=adaptive_pre_sample[str(layer_id+optimizer.mlp_first)][sample_id]
     for sublist in random_samples:
@@ -231,7 +231,7 @@ for layer_id in tqdm(range(optimizer.layer)):
 
 
         random_samples_next=sample[str(layer_id+1+1)][sample_id]
-        #next_samples=pre_sample[str(layer_id+1+1)][sample_id]
+        next_samples=pre_sample[str(layer_id+1+1)][sample_id]
         for sublist in random_samples_next:
             comp_map_next[sublist]+=2*optimizer.h*optimizer.IS
             
@@ -279,11 +279,18 @@ for layer_id in tqdm(range(optimizer.layer)):
                     scatter_node=np.argmin(compute_load_next[layer_id+1,activate_node])
                     #z_copy[e,scatter_node]=1
                     compute_load_next[layer_id+1,scatter_node]+=2*optimizer.h*optimizer.IS
-                    
-        # comp_pre+=np.max(compute_load_next[layer_id+1])/optimizer.comp
-        # comm_pre+=2*optimizer.comm_time_acc_dynamic(M_next,p_copy,layer_id+1,random_samples_next)
-        # comp_pre_adaptive+=np.max(adaptive_compute_load_next[layer_id+1])/optimizer.comp
-        # comm_pre_adaptive+=2*optimizer.comm_time_acc_dynamic(M_next,adaptive_p_copy,layer_id+1,adaptive_random_samples_next)
+        if k>0:        
+            comp_pre+=np.max(compute_load_next[layer_id+1])/optimizer.comp
+            comm_pre+=2*optimizer.comm_time_acc_dynamic(M_next,p_copy,layer_id+1,random_samples_next)
+            comp_pre_adaptive+=np.max(adaptive_compute_load_next[layer_id+1])/optimizer.comp
+            comm_pre_adaptive+=2*optimizer.comm_time_acc_dynamic(M_next,adaptive_p_copy,layer_id+1,adaptive_random_samples_next)
+        else:
+            compute_load_next = np.sum(p_copy * comp_map_next[None,:,None], axis=1)
+            adaptive_compute_load_next = np.sum(adaptive_p_copy * adaptive_comp_map_next[None,:,None], axis=1)
+            comp_pre+=np.max(compute_load_next[layer_id+1])/optimizer.comp
+            comm_pre+=2*optimizer.comm_time_acc_dynamic(M_next,p_copy,layer_id+1,random_samples_next)
+            comp_pre_adaptive+=np.max(adaptive_compute_load_next[layer_id+1])/optimizer.comp
+            comm_pre_adaptive+=2*optimizer.comm_time_acc_dynamic(M_next,adaptive_p_copy,layer_id+1,adaptive_random_samples_next)
 
 print(f"TP_communication_dynamic: {tp_comm_dynamic*1e6:.2f} us")
 print(f"TP_computation_dynamic: {tp_comp_dynamic*1e6:.2f} us")
