@@ -1,0 +1,39 @@
+[
+    {
+        "config": {
+            "mesh_shape": [
+                4,
+                8
+            ],
+            "model": "ds",
+            "dataset": "reasoning",
+            "sample": "roleplay",
+            "comp_TFLOPS": 2.5,
+            "BW_GBPS": 75.0,
+            "batch": 32
+        },
+        "static_deployment": {
+            "communication_us": 62.04,
+            "computation_us": 1906.85,
+            "latency_us": 1968.89
+        },
+        "dynamic_deployment": {
+            "communication_us": 2.13,
+            "computation_us": 57.72,
+            "latency_us": 59.85,
+            "speedup": 32.9
+        },
+        "adaptive_deployment": {
+            "communication_us": 61.99,
+            "computation_us": 1603.35,
+            "latency_us": 1665.34,
+            "speedup": 1.18
+        },
+        "adaptive_dynamic_deployment": {
+            "communication_us": 1.75,
+            "computation_us": 53.11,
+            "latency_us": 54.86,
+            "speedup": 35.89
+        }
+    }
+]

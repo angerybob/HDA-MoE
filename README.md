@@ -1,19 +1,3 @@
-# HD-MoE: Hybrid and Dynamic Parallelism for MoE LLMs on 3D Near-Memory Processing
-
-This repository contains the implementation of **HD-MoE**, a hybrid and dynamic parallelism framework designed to optimize MoE (Mixture-of-Experts) LLM inference on 3D Near-Memory Processing (3D NMP) architectures. This work has been accepted by the **2025 IEEE/ACM International Conference on Computer-Aided Design (ICCAD)**. HD-MoE achieves significant speedups over traditional parallelism strategies by balancing computation load, minimizing communication overhead, and adapting to dynamic expert activation patterns.
-
-
-## Overview
-
-Large Language Models (LLMs) with Mixture-of-Expert (MoE) architectures offer superior performance with reduced computation costs but face challenges in memory bandwidth and efficient parallelization. 3D Near-Memory Processing (3D NMP) architectures address memory-bound issues with high-bandwidth memory stacking, but their distributed nature introduces new mapping and scheduling challenges.
-
-HD-MoE tackles these challenges through:
-- **Offline Hybrid Parallel Mapping**: Combines Tensor Parallelism (TP) and Expert Parallelism (EP) to balance computation and communication.
-- **Online Dynamic Scheduling**: Adapts to real-time expert activation patterns to optimize resource utilization.
-
-Experimental results show HD-MoE achieves 1.1×–1.8× speedup over TP, 1.1×–1.5× over EP, and 1.0×–1.4× over hybrid TP-EP baselines.
-
-
 ## Quick Start
 
 ### 1. 环境搭建（Environment Setup）
@@ -21,24 +5,35 @@ Experimental results show HD-MoE achieves 1.1×–1.8× speedup over TP, 1.1×�
 #### 创建并激活conda环境
 ```bash
 # 创建环境
-conda create -n hdmoe python=3.10
+conda create -n tcad python=3.10
 # 激活环境
-conda activate hdmoe
+conda activate tcad
 ```
 
 #### 克隆仓库并安装依赖
 ```bash
 # 克隆仓库
-git clone git@github.com:angerybob/HD-MoE.git
+git clone --recursive git@github.com:angerybob/TCAD.git
 # 进入仓库目录
-cd HD-MoE
+cd TCAD
 # 安装依赖
 pip install torch==2.6.0 torchaudio==2.6.0 torchvision==0.21.0
 pip install -r requirements.txt
+cd fastchat
+pip install -e ".[model_worker,llm_judge]"
 ```
 
+### 2. 获得专家激活数据
 
-### 2. 生成部署策略（Generate Deployment Strategy）
+```bash
+cd fastchat/fastchat/llm_judge
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python3 gen_model_answer.py --model-path /opt/pretrained_models/DeepSeek-V2-Lite-Chat --model-id 66666 --num-gpus-per-model 8 --num-gpus-total 8
+```
+`--num-gpus-per-model`：一个模型放在几张卡上（张量并行维度）
+`--num-gpus-total`：一共几张卡（对应`CUDA_VISIBLE_DEVICES`一共几个编号）
+`--num-gpus-total/--num-gpus-per-model`：数据并行维度
+
+### 3. 生成部署策略（Generate Deployment Strategy）
 
 通过优化脚本生成针对特定硬件和模型的部署策略，后台运行并输出日志：
 ```bash
@@ -63,13 +58,13 @@ nohup optimizer.sh > script.log 2>&1 &
   ```
   脚本中for循环的层数也要根据模型具体配置修改 
 
-### 3. 评估部署策略（Evaluate Deployment Strategy）
+### 4. 评估部署策略（Evaluate Deployment Strategy）
 
 使用评估脚本验证部署策略的性能，支持端到端 latency、消融实验和动态调度评估：
 
 #### 评估命令
 ```bash
-# 评估端到端TBT latency（对应文章中时间间隔指标）
+# 评估端到端TBT
 python evaluation/scripts/e2e.py
 
 # 消融实验（验证各模块作用）
@@ -83,7 +78,7 @@ python evaluation/scripts/dynamic.py
 - **评估前配置**：需在对应脚本中修改硬件配置（算力、带宽等）、模型类型及数据集，确保与生成的部署策略匹配。
 
 
-### 4. 结果可视化（Visualization）
+### 5. 结果可视化（Visualization）
 
 通过绘图脚本将评估结果可视化，生成与论文对应的关键图表：
 
@@ -135,21 +130,3 @@ python evaluation/draw/dynamic_draw2.py
 - **模型**：支持MoE架构模型（如Qwen、Mixtral、DeepSeek等），可通过 `expert_trace/` 中的专家激活数据扩展新模型。
 - **数据集**：默认使用MT Bench数据集（广泛用于LLM性能评估），可在评估脚本中替换为其他数据集。
 
-
-## Citation
-
-若使用本仓库代码，请引用相关工作：
-```bibtex
-@article{hdmoe,
-  title={HD-MoE: Hybrid and Dynamic Parallelism for Mixture-of-Expert LLMs with 3D Near-Memory Processing},
-  author={Haochen Huang, Shuzhang Zhong, Zhe Zhang, Shuangchen Li, Dimin Niu, Hongzhong Zheng, Runsheng Wang and Meng Li},
-  booktitle={Proceedings of the 44th IEEE/ACM International Conference on Computer-Aided Design},
-  pages={1--9},
-  year={2025}
-}
-```
-
-
-## License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
