@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 def plot_adaptive_results(x_axis: str = "reward_comp",
-                          json_file_path: str = "/data/home/shengxuanqiu/TCAD/evaluation/results/result_adaptive0.json",
+                          json_file_path: str = "/data/home/shengxuanqiu/TCAD/evaluation/results/result_adaptive.json",
                           filter_comp: float | None = 3e-4):
     """
     读取 result_adaptive.json 文件，并绘制
@@ -66,20 +66,22 @@ def plot_adaptive_results(x_axis: str = "reward_comp",
         # 创建图表
         fig, ax = plt.subplots(1, 1, figsize=(18, 8))
         
-        # 设置颜色
-        colors = ["#F28E2B", "#4E79A7","#E15759" ]  # 橙色，蓝色，红色
+        # 设置颜色（绿，蓝，橙，红）
+        colors = ["#59A14F", "#4E79A7", "#F28E2B", "#E15759"]
         
         # 准备数据
         x = np.arange(len(batches))
-        width = 0.25
+        width = 0.2
         
-        # 绘制速度比的柱状图（修改顺序和颜色）
-        ax.bar(x + width, [speedup_data[batch]['pre-broadcast'] for batch in batches], 
-               width, label='pre-broadcast', color=colors[0], edgecolor="black")
-        ax.bar(x, [speedup_data[batch]['adap'] for batch in batches], 
-               width, label='adap', color=colors[1], edgecolor="black")
-        ax.bar(x - width, [speedup_data[batch]['pre+adap'] for batch in batches], 
-               width, label='pre+adap', color=colors[2], edgecolor="black")
+        # 绘制速度比的柱状图（从左到右：baseline, pre-broadcast, adap, pre+adap）
+        ax.bar(x - 1.5*width, [1.0] * len(batches),  # baseline固定为1
+               width, label='baseline', color=colors[0], edgecolor="black")
+        ax.bar(x - 0.5*width, [speedup_data[batch]['pre-broadcast'] for batch in batches], 
+               width, label='pre-broadcast', color=colors[1], edgecolor="black")
+        ax.bar(x + 0.5*width, [speedup_data[batch]['adap'] for batch in batches], 
+               width, label='adap', color=colors[2], edgecolor="black")
+        ax.bar(x + 1.5*width, [speedup_data[batch]['pre+adap'] for batch in batches], 
+               width, label='pre+adap', color=colors[3], edgecolor="black")
         
         # 绘制准确率的折线图
         ax2 = ax.twinx()
@@ -95,7 +97,7 @@ def plot_adaptive_results(x_axis: str = "reward_comp",
         
         # 设置准确率的y轴
         ax2.set_ylabel("Accuracy", fontsize=size)
-        ax2.set_ylim([0, 1.0])
+        ax2.set_ylim([0.2, 1.0])
         
         plt.tight_layout()
         out_png = '/data/home/shengxuanqiu/TCAD/evaluation/figs/adaptive/adaptive_batch_comparison.png'
@@ -254,7 +256,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--x-axis', choices=['reward_comp', 'reward_comm', 'batch'], default='batch',
                         help='选择横坐标')
-    parser.add_argument('--json', type=str, default='/data/home/shengxuanqiu/TCAD/evaluation/results/result_adaptive0.json',
+    parser.add_argument('--json', type=str, default='/data/home/shengxuanqiu/TCAD/evaluation/results/result_adaptive.json',
                         help='结果 JSON 文件路径')
     parser.add_argument('--filter-comp', type=str, default='3e4',
                         help='仅保留 reward_comp为该值的条目')
