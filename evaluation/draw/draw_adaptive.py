@@ -6,14 +6,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 def plot_adaptive_results(x_axis: str = "reward_comp",
-                          json_file_path: str = "/data/home/shengxuanqiu/TCAD/evaluation/results/result_adaptive.json",
+                          json_file_path: str = "evaluation/results/result_adaptive.json",
                           filter_comp: float | None = 3e-4):
     """
     读取 result_adaptive.json 文件，并绘制
     Speedup 和 Accuracy 关于 Reward Compensation/Communication 的关系图。
     x_axis: "reward_comp" 或 "reward_comm" 或 "batch"
     """
-    os.makedirs('/data/home/shengxuanqiu/TCAD/evaluation/figs/adaptive', exist_ok=True)
+    os.makedirs('evaluation/figs/adaptive', exist_ok=True)
 
     if x_axis == "batch":
         # 批处理模式 - 绘制不同批大小的性能比较
@@ -64,7 +64,7 @@ def plot_adaptive_results(x_axis: str = "reward_comp",
         size = 25
         
         # 创建图表
-        fig, ax = plt.subplots(1, 1, figsize=(18, 8))
+        fig, ax = plt.subplots(1, 1, figsize=(18, 4))
         
         # 设置颜色（绿，蓝，橙，红）
         colors = ["#59A14F", "#4E79A7", "#F28E2B", "#E15759"]
@@ -74,15 +74,22 @@ def plot_adaptive_results(x_axis: str = "reward_comp",
         width = 0.2
         
         # 绘制速度比的柱状图（从左到右：baseline, pre-broadcast, adap, pre+adap）
+        # ax.bar(x - 1.5*width, [1.0] * len(batches),  # baseline固定为1
+        #        width, label='Static', color=colors[0], edgecolor="black")
+        # ax.bar(x - 0.5*width, [speedup_data[batch]['pre-broadcast'] for batch in batches], 
+        #        width, label='Pre', color=colors[1], edgecolor="black")
+        # ax.bar(x + 0.5*width, [speedup_data[batch]['adap'] for batch in batches], 
+        #        width, label='Adap', color=colors[2], edgecolor="black")
+        # ax.bar(x + 1.5*width, [speedup_data[batch]['pre+adap'] for batch in batches], 
+        #        width, label='Pre+Adap', color=colors[3], edgecolor="black")
         ax.bar(x - 1.5*width, [1.0] * len(batches),  # baseline固定为1
-               width, label='baseline', color=colors[0], edgecolor="black")
+               width, color=colors[0], edgecolor="black")
         ax.bar(x - 0.5*width, [speedup_data[batch]['pre-broadcast'] for batch in batches], 
-               width, label='pre-broadcast', color=colors[1], edgecolor="black")
+               width, color=colors[1], edgecolor="black")
         ax.bar(x + 0.5*width, [speedup_data[batch]['adap'] for batch in batches], 
-               width, label='adap', color=colors[2], edgecolor="black")
+               width, color=colors[2], edgecolor="black")
         ax.bar(x + 1.5*width, [speedup_data[batch]['pre+adap'] for batch in batches], 
-               width, label='pre+adap', color=colors[3], edgecolor="black")
-        
+               width, color=colors[3], edgecolor="black")
         # 绘制准确率的折线图
         ax2 = ax.twinx()
         ax2.plot(x, accuracy_values, 
@@ -93,19 +100,21 @@ def plot_adaptive_results(x_axis: str = "reward_comp",
         ax.set_ylabel("Speedup", fontsize=size)
         ax.set_xticks(x)
         ax.set_xticklabels([str(batch) for batch in batches])
-        ax.legend(loc="upper left", fontsize=20)
+        #ax.legend(loc="upper left", fontsize=20)
         
         # 设置准确率的y轴
         ax2.set_ylabel("Accuracy", fontsize=size)
         ax2.set_ylim([0.2, 1.0])
         
         plt.tight_layout()
-        out_png = '/data/home/shengxuanqiu/TCAD/evaluation/figs/adaptive/adaptive_batch_comparison.png'
+        out_png = 'evaluation/figs/adaptive/adaptive_batch_comparison.png'
         fig.savefig(out_png, dpi=300)
-
+        out_pdf = 'evaluation/figs/adaptive/adaptive_batch_comparison.pdf'
+        fig.savefig(out_pdf, dpi=300)
+        
     elif x_axis == "reward_comp":
         accuracy_data = {
-            0.5: 0.7500,
+            0.0: 0.7500,
             1.0: 0.6875,
             2.0: 0.7188,
             3.0: 0.7500,
@@ -118,6 +127,11 @@ def plot_adaptive_results(x_axis: str = "reward_comp",
         }
 
         plot_data = []
+        plot_data.append({
+            'reward': 0.0,
+            'speedup': 1.0,
+            'accuracy': 0.7500
+        })
         try:
             with open(json_file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
@@ -151,30 +165,32 @@ def plot_adaptive_results(x_axis: str = "reward_comp",
         rewards = [item['reward'] for item in plot_data]
         speedups = [item['speedup'] for item in plot_data]
         accuracies = [item['accuracy'] for item in plot_data]
-
-        fig, ax1 = plt.subplots(figsize=(10, 6))
-        ax1.set_xlabel('reward comp (-1e4)')
+        size = 30
+        fig, ax1 = plt.subplots(figsize=(10, 5))
+        ax1.set_xlabel('reward of comp. (-1e4)', fontsize=size)
         ax1.set_xticks(rewards)
-        size = 15
+        ax1.set_xticklabels(rewards, fontsize=int(size*0.7))
 
         color1 = 'tab:blue'
         ax1.set_ylabel('Speedup', fontsize=size)
         ax1.plot(rewards, speedups, color=color1, marker='o', linestyle='-', label='Speedup', linewidth=2.5)
-        ax1.tick_params(axis='y', labelcolor=color1)
-        ax1.set_ylim(1.0, 2.4)
+        ax1.tick_params(axis='y', labelcolor=color1, labelsize=int(size*0.7))
+        ax1.set_ylim(0.8, 2.9)
         ax1.grid(True, which='both', linestyle='--', linewidth=1)
 
         ax2 = ax1.twinx()
         color2 = 'tab:green'
         ax2.set_ylabel('Accuracy', fontsize=size)
         ax2.plot(rewards, accuracies, color=color2, marker='s', linestyle='-', label='Accuracy', linewidth=2.5)
-        ax2.tick_params(axis='y', labelcolor=color2)
+        ax2.tick_params(axis='y', labelcolor=color2, labelsize=int(size*0.7))
         ax2.set_ylim(0, 1.0)
 
-        fig.legend(loc="upper right", bbox_to_anchor=(1, 1), bbox_transform=ax1.transAxes)
+        fig.legend(loc="upper right", bbox_to_anchor=(1, 1), bbox_transform=ax1.transAxes,fontsize=int(size*0.7))
         fig.tight_layout()
-        out_png = '/data/home/shengxuanqiu/TCAD/evaluation/figs/adaptive/adaptive_performance.png'
+        out_png = 'evaluation/figs/adaptive/adaptive_performance.png'
         fig.savefig(out_png, dpi=300)
+        out_pdf = 'evaluation/figs/adaptive/adaptive_performance.pdf'
+        fig.savefig(out_pdf, dpi=300)
 
     else:  # x_axis == "reward_comm"
         accuracy_data_comm = {
@@ -201,7 +217,9 @@ def plot_adaptive_results(x_axis: str = "reward_comp",
                         continue
 
                     reward_str = entry['config']['reward_comm']
-                    reward_abs_val = abs(float(reward_str)) / 1e-2
+                    if entry['config']['batch'] != 32:
+                        continue
+                    reward_abs_val = float(int(abs(float(reward_str)) * 1e2))
                     speedup = entry['adaptive_deployment']['speedup']
 
                     accuracy = accuracy_data_comm.get(reward_abs_val)
@@ -210,6 +228,8 @@ def plot_adaptive_results(x_axis: str = "reward_comp",
                         'speedup': speedup,
                         'accuracy': accuracy  
                     })
+                #print(plot_data)
+        
         except FileNotFoundError:
             print(f"错误: 文件未找到 {json_file_path}")
             return
@@ -224,16 +244,17 @@ def plot_adaptive_results(x_axis: str = "reward_comp",
         plot_data.sort(key=lambda x: x['reward'])
         rewards = [item['reward'] for item in plot_data]
         speedups = [item['speedup'] for item in plot_data]
-
-        fig, ax1 = plt.subplots(figsize=(10, 6))
-        ax1.set_xlabel('reward comm (-1e-2)')
+        size = 30
+        fig, ax1 = plt.subplots(figsize=(10, 5))
+        ax1.set_xlabel('reward of comm. (-1e-2)', fontsize=size)
         ax1.set_xticks(rewards)
-        size = 15
+        ax1.set_xticklabels(rewards, fontsize=int(size*0.7))
+        
 
         color1 = 'tab:blue'
         ax1.set_ylabel('Speedup', fontsize=size)
         ax1.plot(rewards, speedups, color=color1, marker='o', linestyle='-', label='Speedup', linewidth=2.5)
-        ax1.tick_params(axis='y', labelcolor=color1)
+        ax1.tick_params(axis='y', labelcolor=color1, labelsize=int(size*0.7))
         ax1.set_ylim(1.4, 1.9)
         ax1.grid(True, which='both', linestyle='--', linewidth=1)
 
@@ -244,19 +265,21 @@ def plot_adaptive_results(x_axis: str = "reward_comp",
             color2 = 'tab:green'
             ax2.set_ylabel('Accuracy', fontsize=size)
             ax2.plot(rewards_acc, accuracies, color=color2, marker='s', linestyle='-', label='Accuracy', linewidth=2.5)
-            ax2.tick_params(axis='y', labelcolor=color2)
+            ax2.tick_params(axis='y', labelcolor=color2, labelsize=int(size*0.7))
             ax2.set_ylim(0, 1.0)
-            fig.legend(loc="upper right", bbox_to_anchor=(1, 1), bbox_transform=ax1.transAxes)
+            fig.legend(loc="upper right", bbox_to_anchor=(1, 1), bbox_transform=ax1.transAxes,fontsize=int(size*0.7))
 
         fig.tight_layout()
-        out_png = '/data/home/shengxuanqiu/TCAD/evaluation/figs/adaptive/adaptive_performance_comm.png'
+        out_png = 'evaluation/figs/adaptive/adaptive_performance_comm.png'
         fig.savefig(out_png, dpi=300)
+        out_pdf = 'evaluation/figs/adaptive/adaptive_performance_comm.pdf'
+        fig.savefig(out_pdf, dpi=300)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--x-axis', choices=['reward_comp', 'reward_comm', 'batch'], default='batch',
+    parser.add_argument('--x-axis', choices=['reward_comp', 'reward_comm', 'batch'], default='reward_comp',
                         help='选择横坐标')
-    parser.add_argument('--json', type=str, default='/data/home/shengxuanqiu/TCAD/evaluation/results/result_adaptive.json',
+    parser.add_argument('--json', type=str, default='evaluation/results/result_adaptive.json',
                         help='结果 JSON 文件路径')
     parser.add_argument('--filter-comp', type=str, default='3e4',
                         help='仅保留 reward_comp为该值的条目')

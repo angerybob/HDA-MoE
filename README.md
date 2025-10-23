@@ -28,6 +28,8 @@ pip install -e ".[model_worker,llm_judge]"
 ```bash
 cd fastchat/fastchat/llm_judge
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python3 gen_model_answer.py --model-path /opt/pretrained_models/DeepSeek-V2-Lite-Chat --model-id 66666 --num-gpus-per-model 8 --num-gpus-total 8
+# or
+CUDA_VISIBLE_DEVICES=2 python3 gen_model_answer.py --model-path /opt/pretrained_models/DeepSeek-V2-Lite-Chat --model-id 66666 --num-gpus-per-model 1 --num-gpus-total 1
 ```
 `--num-gpus-per-model`：一个模型放在几张卡上（张量并行维度）
 

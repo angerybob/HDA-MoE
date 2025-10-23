@@ -137,8 +137,8 @@ cbar.set_label('Frequency',
 cbar.ax.tick_params(labelsize=24)
 
 # 设置坐标轴标签
-axs[0,0].set_xlabel("Expert Index", fontsize=24)
-axs[0,0].set_ylabel("Layer Index", fontsize=24)
+axs[0,0].set_xlabel("Expert Index", fontsize=20)
+axs[0,0].set_ylabel("Layer Index", fontsize=20)
 
 
 
@@ -159,18 +159,53 @@ axs[0,0].text(
     0.5, -0.32, '(a)', 
     ha='center', va='center', 
     transform=axs[0,0].transAxes, 
-    fontsize=20
+    fontsize=20,weight='bold'
 )
 
 
 
 # 第二张图： 
-axs[0, 1].plot(range(num_layers), np.mean(reuse,axis=1), label='Reuse Probability', color='darkblue', linestyle='-' , marker='o',  markersize=8)
-axs[0, 1].set_xlabel('Layer Index', fontsize=24)
-axs[0, 1].set_ylabel('Reuse Probability', fontsize=24)
-axs[0, 1].set_ylim(0, 1)
-axs[0, 1].text(0.5, -0.32, '(b)', ha='center', va='center', transform=axs[0, 1].transAxes, fontsize=20)
-axs[0, 1].tick_params(axis='both', which='major', labelsize=24)
+# axs[0, 1].plot(range(num_layers), np.mean(reuse,axis=1), label='Reuse Probability', color='darkblue', linestyle='-' , marker='o',  markersize=8)
+# axs[0, 1].set_xlabel('Layer Index', fontsize=24)
+# axs[0, 1].set_ylabel('Reuse Probability', fontsize=24)
+# axs[0, 1].set_ylim(0, 1)
+# axs[0, 1].text(0.5, -0.32, '(b)', ha='center', va='center', transform=axs[0, 1].transAxes, fontsize=20)
+# axs[0, 1].tick_params(axis='both', which='major', labelsize=24)
+
+ax_main = axs[0, 1]
+ax_main.plot(range(num_layers), np.mean(reuse, axis=1), 
+             label='Reuse Probability', 
+             color='darkblue', 
+             linestyle='-', 
+             marker='o', 
+             markersize=8)
+ax_main.set_xlabel('Layer Index', fontsize=20)
+#ax_main.set_ylabel('Reuse Probability', fontsize=18, color='darkblue')  # 左侧y轴标签颜色匹配曲线
+ax_main.set_ylim(0, 1.4)
+ax_main.tick_params(axis='y', labelcolor='darkblue', labelsize=20)  # 左侧y轴刻度颜色匹配
+ax_main.tick_params(axis='x', labelsize=20)
+
+# 创建右侧坐标轴（共享x轴）
+ax_secondary = ax_main.twinx()
+ax_secondary.plot(range(num_layers), np.mean(predict, axis=1), 
+                  label='Accuracy of Prediction', 
+                  color='darkgreen', 
+                  linestyle='-', 
+                  marker='o', 
+                  markersize=8)
+#ax_secondary.set_ylabel('Accuracy of Prediction', fontsize=18, color='darkgreen', labelpad=-10)  # 右侧y轴标签颜色匹配曲线
+ax_secondary.set_ylim(0, 1.4)
+ax_secondary.tick_params(axis='y', labelcolor='darkgreen', labelsize=20)  # 右侧y轴刻度颜色匹配
+
+# 添加图例（合并两个曲线的图例）
+lines = ax_main.get_lines() + ax_secondary.get_lines()
+ax_main.legend(lines, [line.get_label() for line in lines], fontsize=18, loc='upper right')
+
+# 添加子图标签 (b)
+ax_main.text(0.5, -0.32, '(b)', ha='center', va='center', transform=ax_main.transAxes, fontsize=20,weight='bold')
+
+
+# 第三张图：expert co-activation heatmap
 heatmap = sns.heatmap(
     group_count[:32,:32], 
     annot=False,
@@ -184,7 +219,7 @@ heatmap = sns.heatmap(
 # 设置颜色条字体
 cbar = heatmap.collections[0].colorbar
 cbar.set_label('Affinity', fontsize=28)
-cbar.ax.tick_params(labelsize=24)
+cbar.ax.tick_params(labelsize=20)
 cbar.set_label('Frequency', 
                fontsize=20,
                labelpad=10,
@@ -195,8 +230,8 @@ cbar.set_label('Frequency',
                va='top'
               )
 # 设置坐标轴标签
-axs[1,0].set_xlabel("Expert Index", fontsize=24)
-axs[1,0].set_ylabel("Expert Index", fontsize=24)
+axs[1,0].set_xlabel("Expert Index", fontsize=20)
+axs[1,0].set_ylabel("Expert Index", fontsize=20)
 
 
 
@@ -217,19 +252,52 @@ axs[1,0].text(
     0.5, -0.32, '(c)', 
     ha='center', va='center', 
     transform=axs[1,0].transAxes, 
-    fontsize=20
+    fontsize=20,weight='bold'
 )
 
-axs[1, 1].plot(range(num_layers), np.mean(predict,axis=1), label='Accurancy of Prediction', color='darkgreen', linestyle='-' , marker='o',  markersize=8)
-axs[1, 1].set_xlabel('Layer Index', fontsize=24)
-axs[1, 1].set_ylabel('Accurancy of Prediction', fontsize=24)
-axs[1, 1].set_ylim(0, 1)
-axs[1, 1].text(0.5, -0.32, '(d)', ha='center', va='center', transform=axs[1, 1].transAxes, fontsize=20)
-axs[1, 1].tick_params(axis='both', which='major', labelsize=24)
+
+# 第四张图
+top_n = list(range(1, 11))
+expert_scores = [0.035171035677194595, 0.021586395800113678, 0.021038472652435303, 0.019493015483021736, 
+                 0.019401047378778458, 0.019190331920981407, 0.019017353653907776, 0.018967637792229652, 
+                 0.01846071146428585, 0.01800929568707943]
+# 区分激活和未激活专家
+activated_scores = expert_scores[:6]
+inactive_scores = expert_scores[6:]
+activated_indices = top_n[:6]
+inactive_indices = top_n[6:]
+# 绘制柱状图
+bars_activated = axs[1, 1].bar(activated_indices, activated_scores, 
+                       color='darkblue', label='Activated Experts', 
+                       edgecolor='black', linewidth=0.5,
+                       )  # 添加阴影效果
+
+bars_inactive = axs[1, 1].bar(inactive_indices, inactive_scores, 
+                      color='darkgreen', label='Inactive Experts', 
+                      edgecolor='black', linewidth=0.5)
+
+# 设置标签和标题
+axs[1, 1].set_xlabel('Top-n Experts', fontsize=20)
+axs[1, 1].set_ylabel('Expert Scores', fontsize=20)
+#axs[1, 1].set_title('Expert Scores Distribution', fontsize=16)
+axs[1, 1].set_xticks(top_n)
+axs[1, 1].legend(fontsize=18)
+
+
+# axs[1, 1].plot(range(num_layers), np.mean(predict,axis=1), label='Accurancy of Prediction', color='darkgreen', linestyle='-' , marker='o',  markersize=8)
+# axs[1, 1].set_xlabel('Layer Index', fontsize=24)
+# axs[1, 1].set_ylabel('Accurancy of Prediction', fontsize=24)
+# axs[1, 1].set_ylim(0, 1)
+axs[1, 1].text(0.5, -0.32, '(d)', ha='center', va='center', transform=axs[1, 1].transAxes, fontsize=20, weight='bold')
+axs[1, 1].tick_params(axis='both', which='major', labelsize=20)
 
 # 调整子图间距
 plt.tight_layout()
 plt.subplots_adjust(hspace=0.6)
 save_dir = 'evaluation/figs/motivation/motivation.png'
+plt.savefig(save_dir)
+print(f"Figure saved at {save_dir}")
+
+save_dir = 'evaluation/figs/motivation/motivation.pdf'
 plt.savefig(save_dir)
 print(f"Figure saved at {save_dir}")
