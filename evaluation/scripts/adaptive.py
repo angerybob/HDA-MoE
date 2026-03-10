@@ -91,38 +91,48 @@ def mem_overhead(BWmem,D,batch,h,L,intermediate,E):
 
 
 batch=int(32)
-model="ds"
+model="qwen"
 if model=="ds":
     E,e,SE,h,IS,mlp_first,num_layers=64,6,0,2048,1408,True,26  #DeepSeekMoE 
 elif model=="mixtral":
     E,e,SE,h,IS,mlp_first,num_layers=8,2,0,4096,14336,False,32 #Mixtral
 elif model=="qwen":
-    E,e,SE,h,IS,mlp_first,num_layers=64,8,0,3584,18944,False,28 #Qwen2
+    E,e,SE,h,IS,mlp_first,num_layers=64,8,0,3584,2560,False,28 #Qwen2
  
 dataset=["reasoning","math","coding","writing","roleplay"][0]
-sample1=["reasoning","math","coding","writing","roleplay"][4]
+sample1=["reasoning","math","coding","writing","roleplay"][1]
 mesh_shape=(4,8)
 D=mesh_shape[0]*mesh_shape[1]
-data_path=f'expert_trace/{model}/predict/experts_{dataset}_{model}_pre.json'
+# data_path=f'expert_trace/{model}/predict/experts_{dataset}_{model}_pre.json'
 
 sample_path=f'expert_trace/{model}/adaptive/experts_{sample1}_{model}_adaptive.json'
 try:
-    with open(data_path, 'r', encoding='utf-8') as f:
-        data1 = json.load(f)
-        data,pre=data1["selected_experts"],data1["predict_experts"]
+    # with open(data_path, 'r', encoding='utf-8') as f:
+    #     data1 = json.load(f)
+    #     data,pre=data1["selected_experts"],data1["predict_experts"]
 
     with open(sample_path, 'r', encoding='utf-8') as f1:
         sample2 = json.load(f1)
         sample,pre_sample=sample2["original_selected_experts"],sample2["original_predict_experts"]
         adaptive_sample,adaptive_pre_sample=sample2["selected_experts"],sample2["predict_experts"]
 except FileNotFoundError:
-    print("文件未找到，请检查文件路径和文件名。")
-optimizer = MoE3DPNMOptimizer(E=E,e=e,h=h,IS=IS,B=batch, D=D,BW=75*1e9, comp=2.5*1e12, num_layers=num_layers,mlp_first=mlp_first,routing_trace=data)
+    print(f"文件未找到，请检查文件路径和文件名。{sample_path}")
+
+# 将 sample（每层为三维列表）展平为 MoE3DPNMOptimizer 需要的二维格式：每层对应 [ [e1..e8], [e1..e8], ... ]
+def flatten_routing_trace_for_optimizer(trace_3d):
+    """每层: 三维 [batch/样本][seq][e个专家] -> 二维 [所有激活][e个专家]"""
+    return {
+        k: [activation for batch in v for activation in batch]
+        for k, v in trace_3d.items()
+    }
+
+routing_trace_flat = flatten_routing_trace_for_optimizer(sample)
+optimizer = MoE3DPNMOptimizer(E=E,e=e,h=h,IS=IS,B=batch, D=D,BW=75*1e9, comp=2.5*1e12, num_layers=num_layers,mlp_first=mlp_first,routing_trace=routing_trace_flat)
 P_tp=np.ones((optimizer.layer,optimizer.E,optimizer.D))/optimizer.D
 P_ep=EP_deployment(optimizer.layer,optimizer.E,optimizer.D)
 
 
-sample_id = random.randint(0, len(sample[str(1)]) - 1)
+sample_id = random.randint(0, len(sample[str(1)]) - 2)
 s=sample[str(1+optimizer.mlp_first)][sample_id]
 while len(s)!=batch:
     sample_id = random.randint(0, len(sample[str(1)]) - 1)
@@ -132,7 +142,7 @@ BWmem=625e9
 L=1024
 t_inf=comp_overhead(optimizer.comp,optimizer.D,batch,optimizer.h,L,optimizer.IS/optimizer.h,optimizer.e)+mem_overhead(BWmem,optimizer.D,batch,optimizer.h,L,optimizer.IS/optimizer.h,optimizer.E)
 k=1
-
+# pdb.set_trace()
 while optimizer.optimal_broadcast_chunk(k=k)<t_inf:
 
     k+=1
@@ -173,8 +183,13 @@ for layer_id in tqdm(range(optimizer.layer)):
     s=sample[str(layer_id+optimizer.mlp_first)][sample_id]
     if len(s)==batch:
         random_samples=s
+        # pdb.set_trace()
+        try:
+            next_samples=pre_sample[str(layer_id+optimizer.mlp_first)][sample_id]
+        except:
+            pdb.set_trace()
 
-        next_samples=pre_sample[str(layer_id+optimizer.mlp_first)][sample_id]
+        # next_samples=pre_sample[str(layer_id+optimizer.mlp_first)][sample_id]
         adaptive_random_samples=adaptive_sample[str(layer_id+optimizer.mlp_first)][sample_id]
         adaptive_next_samples=adaptive_pre_sample[str(layer_id+optimizer.mlp_first)][sample_id]
     for sublist in random_samples:
@@ -194,6 +209,7 @@ for layer_id in tqdm(range(optimizer.layer)):
 
 
     ep_comp_dynamic+=optimizer.compute_time_dynamic(P_ep,comp_map)[layer_id]
+    # pdb.set_trace()
     ep_comm_dynamic+=2*optimizer.comm_time_acc_dynamic(M_rand,P_ep,layer_id,random_samples)
     comp_dynamic+=optimizer.compute_time_dynamic(P,comp_map)[layer_id]
     comp_adaptive+=optimizer.compute_time_dynamic(P,adaptive_comp_map)[layer_id]
@@ -230,14 +246,14 @@ for layer_id in tqdm(range(optimizer.layer)):
         adaptive_comp_map_next=np.zeros((optimizer.E))
 
 
-        random_samples_next=sample[str(layer_id+1+1)][sample_id]
-        next_samples=pre_sample[str(layer_id+1+1)][sample_id]
+        random_samples_next=sample[str(layer_id+optimizer.mlp_first+1)][sample_id]
+        next_samples=pre_sample[str(layer_id+optimizer.mlp_first+1)][sample_id]
         for sublist in random_samples_next:
             comp_map_next[sublist]+=2*optimizer.h*optimizer.IS
             
 
-        adaptive_random_samples_next=adaptive_sample[str(layer_id+1+1)][sample_id]
-        adaptive_next_samples=adaptive_pre_sample[str(layer_id+1+1)][sample_id]
+        adaptive_random_samples_next=adaptive_sample[str(layer_id+optimizer.mlp_first+1)][sample_id]
+        adaptive_next_samples=adaptive_pre_sample[str(layer_id+optimizer.mlp_first+1)][sample_id]
         
         for sublist in adaptive_random_samples_next:
             adaptive_comp_map_next[sublist]+=2*optimizer.h*optimizer.IS

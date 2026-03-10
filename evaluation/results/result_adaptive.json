@@ -464,7 +464,7 @@
             "communication_us": 33.76,
             "computation_us": 949.67,
             "latency_us": 983.42,
-            "speedup": 1.70
+            "speedup": 1.7
         }
     },
     {
@@ -926,7 +926,7 @@
             "communication_us": 51.39,
             "computation_us": 1846.22,
             "latency_us": 1897.61,
-            "speedup": 1.70
+            "speedup": 1.7
         },
         "adaptive_dynamic_deployment": {
             "communication_us": 48.87,
@@ -972,6 +972,117 @@
             "computation_us": 3644.56,
             "latency_us": 3877.42,
             "speedup": 2.12
+        }
+    },
+    {
+        "config": {
+            "mesh_shape": [
+                4,
+                8
+            ],
+            "model": "qwen",
+            "dataset": "reasoning",
+            "sample": "math",
+            "comp_TFLOPS": 2.5,
+            "BW_GBPS": 75.0,
+            "batch": 32
+        },
+        "static_deployment": {
+            "communication_us": 172.99,
+            "computation_us": 78732.35,
+            "latency_us": 78905.33
+        },
+        "dynamic_deployment": {
+            "communication_us": 163.14,
+            "computation_us": 78732.35,
+            "latency_us": 78895.49,
+            "speedup": 1.0
+        },
+        "adaptive_deployment": {
+            "communication_us": 163.24,
+            "computation_us": 78732.35,
+            "latency_us": 78895.59,
+            "speedup": 1.0
+        },
+        "adaptive_dynamic_deployment": {
+            "communication_us": 156.64,
+            "computation_us": 78732.35,
+            "latency_us": 78888.99,
+            "speedup": 1.0
+        }
+    },
+    {
+        "config": {
+            "mesh_shape": [
+                4,
+                8
+            ],
+            "model": "qwen",
+            "dataset": "reasoning",
+            "sample": "math",
+            "comp_TFLOPS": 2.5,
+            "BW_GBPS": 75.0,
+            "batch": 32
+        },
+        "static_deployment": {
+            "communication_us": 156.64,
+            "computation_us": 72525.66,
+            "latency_us": 72682.3
+        },
+        "dynamic_deployment": {
+            "communication_us": 152.15,
+            "computation_us": 72525.66,
+            "latency_us": 72677.81,
+            "speedup": 1.0
+        },
+        "adaptive_deployment": {
+            "communication_us": 158.75,
+            "computation_us": 72525.66,
+            "latency_us": 72684.41,
+            "speedup": 1.0
+        },
+        "adaptive_dynamic_deployment": {
+            "communication_us": 150.91,
+            "computation_us": 72525.66,
+            "latency_us": 72676.57,
+            "speedup": 1.0
+        }
+    },
+    {
+        "config": {
+            "mesh_shape": [
+                4,
+                8
+            ],
+            "model": "qwen",
+            "dataset": "reasoning",
+            "sample": "math",
+            "comp_TFLOPS": 2.5,
+            "BW_GBPS": 75.0,
+            "batch": 32
+        },
+        "static_deployment": {
+            "communication_us": 158.75,
+            "computation_us": 9518.87,
+            "latency_us": 9677.62
+        },
+        "dynamic_deployment": {
+            "communication_us": 153.87,
+            "computation_us": 9518.87,
+            "latency_us": 9672.75,
+            "speedup": 1.0
+        },
+        "adaptive_deployment": {
+            "communication_us": 139.73,
+            "computation_us": 9518.87,
+            "latency_us": 9658.6,
+            "speedup": 1.0
+        },
+        "adaptive_dynamic_deployment": {
+            "communication_us": 153.59,
+            "computation_us": 9518.87,
+            "latency_us": 9672.46,
+            "speedup": 1.0
         }
     }
 ]

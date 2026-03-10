@@ -358,7 +358,7 @@ class MoE3DPNMOptimizer:
             #redundant = freq * self.B * self.h * np.maximum((devices-1),0)
             redundant = freq * self.B * self.h * (devices>0)
             #single_comm[layer_id] -= redundant
-            #pdb.set_trace()
+            # pdb.set_trace()
             layer_data += redundant
             
         # 执行离散事件仿真
