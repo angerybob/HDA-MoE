@@ -1084,5 +1084,42 @@
             "latency_us": 9672.46,
             "speedup": 1.0
         }
+    },
+    {
+        "config": {
+            "mesh_shape": [
+                4,
+                8
+            ],
+            "model": "mixtral",
+            "dataset": "reasoning",
+            "sample": "math",
+            "comp_TFLOPS": 2.5,
+            "BW_GBPS": 75.0,
+            "batch": 32
+        },
+        "static_deployment": {
+            "communication_us": 274.38,
+            "computation_us": 8818.28,
+            "latency_us": 9092.65
+        },
+        "dynamic_deployment": {
+            "communication_us": 274.05,
+            "computation_us": 8818.28,
+            "latency_us": 9092.32,
+            "speedup": 1.0
+        },
+        "adaptive_deployment": {
+            "communication_us": 277.44,
+            "computation_us": 8818.28,
+            "latency_us": 9095.71,
+            "speedup": 1.0
+        },
+        "adaptive_dynamic_deployment": {
+            "communication_us": 271.1,
+            "computation_us": 8818.28,
+            "latency_us": 9089.38,
+            "speedup": 1.0
+        }
     }
 ]

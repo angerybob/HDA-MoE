@@ -91,7 +91,7 @@ def mem_overhead(BWmem,D,batch,h,L,intermediate,E):
 
 
 batch=int(32)
-model="qwen"
+model="mixtral"
 if model=="ds":
     E,e,SE,h,IS,mlp_first,num_layers=64,6,0,2048,1408,True,26  #DeepSeekMoE 
 elif model=="mixtral":
