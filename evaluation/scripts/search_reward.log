@@ -1,0 +1,133 @@
+Traceback (most recent call last):
+  File "/data/home/haochenhuang/TCAD/fastchat/fastchat/llm_judge/gen_model_answer.py", line 17, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+Traceback (most recent call last):
+  File "/data/home/haochenhuang/TCAD/fastchat/fastchat/llm_judge/gen_model_answer.py", line 17, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+
+========== 模型: mixtral ==========
+[run_gen_humaneval] model=mixtral model_id=humaneval-mixtral-8x7b-v0.1-baseline reward_comp=0.0 reward_comm=0.0
+[mixtral] baseline 评估失败，跳过该模型
+
+========== 模型: qwen ==========
+[run_gen_humaneval] model=qwen model_id=humaneval-qwen2-57b-a14b-instruct-baseline reward_comp=0.0 reward_comm=0.0
+[qwen] baseline 评估失败，跳过该模型
+
+结果已写入: /data/home/haochenhuang/TCAD/evaluation/scripts/search_reward_results/search_reward_results.json
+Traceback (most recent call last):
+  File "/data/home/haochenhuang/TCAD/fastchat/fastchat/llm_judge/gen_model_answer.py", line 17, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+Traceback (most recent call last):
+  File "/data/home/haochenhuang/TCAD/fastchat/fastchat/llm_judge/gen_model_answer.py", line 17, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+
+========== 模型: mixtral ==========
+[run_gen_humaneval] model=mixtral model_id=humaneval-mixtral-8x7b-v0.1-baseline reward_comp=0.0 reward_comm=0.0
+[mixtral] baseline 评估失败，跳过该模型
+
+========== 模型: qwen ==========
+[run_gen_humaneval] model=qwen model_id=humaneval-qwen2-57b-a14b-instruct-baseline reward_comp=0.0 reward_comm=0.0
+[qwen] baseline 评估失败，跳过该模型
+
+结果已写入: /data/home/haochenhuang/TCAD/evaluation/scripts/search_reward_results/search_reward_results.json
+[data-dir] 数据集: humaneval -> /data1/datasets/humaneval/model_answer/humaneval-mixtral-8x7b-v0.1-baseline.jsonl
+Loading checkpoint shards:   0%|          | 0/19 [00:00<?, ?it/s]Loading checkpoint shards:   5%|▌         | 1/19 [00:01<00:32,  1.80s/it]Loading checkpoint shards:  11%|█         | 2/19 [00:03<00:27,  1.60s/it]Loading checkpoint shards:  16%|█▌        | 3/19 [00:04<00:24,  1.50s/it]Loading checkpoint shards:  21%|██        | 4/19 [00:06<00:21,  1.46s/it]Loading checkpoint shards:  26%|██▋       | 5/19 [00:07<00:20,  1.45s/it]Loading checkpoint shards:  32%|███▏      | 6/19 [00:08<00:18,  1.46s/it]Loading checkpoint shards:  37%|███▋      | 7/19 [00:10<00:17,  1.49s/it]Loading checkpoint shards:  42%|████▏     | 8/19 [00:12<00:16,  1.52s/it]Loading checkpoint shards:  47%|████▋     | 9/19 [00:13<00:15,  1.55s/it]Loading checkpoint shards:  53%|█████▎    | 10/19 [00:15<00:14,  1.56s/it]Loading checkpoint shards:  58%|█████▊    | 11/19 [00:17<00:12,  1.62s/it]Loading checkpoint shards:  63%|██████▎   | 12/19 [00:18<00:11,  1.66s/it]Loading checkpoint shards:  68%|██████▊   | 13/19 [00:20<00:10,  1.70s/it]Loading checkpoint shards:  74%|███████▎  | 14/19 [00:22<00:08,  1.72s/it]Loading checkpoint shards:  79%|███████▉  | 15/19 [00:24<00:06,  1.73s/it]Loading checkpoint shards:  84%|████████▍ | 16/19 [00:25<00:05,  1.75s/it]Loading checkpoint shards:  89%|████████▉ | 17/19 [00:27<00:03,  1.56s/it]Loading checkpoint shards:  95%|█████████▍| 18/19 [00:28<00:01,  1.45s/it]Loading checkpoint shards: 100%|██████████| 19/19 [00:29<00:00,  1.32s/it]Loading checkpoint shards: 100%|██████████| 19/19 [00:29<00:00,  1.54s/it]
+Some parameters are on the meta device because they were offloaded to the cpu.
+chunks:   0%|          | 0/1 [00:00<?, ?it/s]/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/transformers/generation/configuration_utils.py:628: UserWarning: `do_sample` is set to `False`. However, `temperature` is set to `0.0` -- this flag is only used in sample-based generation modes. You should set `do_sample=True` or unset `temperature`.
+  warnings.warn(
+chunks: 100%|██████████| 1/1 [1:36:36<00:00, 5796.79s/it]chunks: 100%|██████████| 1/1 [1:36:36<00:00, 5796.79s/it]
+Wrote /data/home/haochenhuang/TCAD/evaluation/scripts/search_reward_results/mixtral_baseline.samples.jsonl
+Wrote 10 problems to /data/home/haochenhuang/human-eval/data/HumanEval_subset10.jsonl
+[data-dir] 数据集: humaneval -> /data1/datasets/humaneval/model_answer/humaneval-mixtral-8x7b-v0.1-reward-comp-n50000-reward-comm-n0_05.jsonl
+Loading checkpoint shards:   0%|          | 0/19 [00:00<?, ?it/s]Loading checkpoint shards:   5%|▌         | 1/19 [00:01<00:30,  1.71s/it]Loading checkpoint shards:  11%|█         | 2/19 [00:03<00:25,  1.50s/it]Loading checkpoint shards:  16%|█▌        | 3/19 [00:04<00:22,  1.43s/it]Loading checkpoint shards:  21%|██        | 4/19 [00:05<00:20,  1.38s/it]Loading checkpoint shards:  26%|██▋       | 5/19 [00:06<00:18,  1.35s/it]Loading checkpoint shards:  32%|███▏      | 6/19 [00:08<00:17,  1.33s/it]Loading checkpoint shards:  37%|███▋      | 7/19 [00:09<00:15,  1.31s/it]Loading checkpoint shards:  42%|████▏     | 8/19 [00:10<00:14,  1.30s/it]Loading checkpoint shards:  47%|████▋     | 9/19 [00:12<00:12,  1.30s/it]Loading checkpoint shards:  53%|█████▎    | 10/19 [00:13<00:11,  1.30s/it]Loading checkpoint shards:  58%|█████▊    | 11/19 [00:14<00:10,  1.30s/it]Loading checkpoint shards:  63%|██████▎   | 12/19 [00:16<00:09,  1.30s/it]Loading checkpoint shards:  68%|██████▊   | 13/19 [00:17<00:07,  1.30s/it]Loading checkpoint shards:  74%|███████▎  | 14/19 [00:18<00:06,  1.28s/it]Loading checkpoint shards:  79%|███████▉  | 15/19 [00:19<00:05,  1.29s/it]Loading checkpoint shards:  84%|████████▍ | 16/19 [00:21<00:03,  1.25s/it]Loading checkpoint shards:  89%|████████▉ | 17/19 [00:21<00:01,  1.02it/s]Loading checkpoint shards:  95%|█████████▍| 18/19 [00:21<00:00,  1.26it/s]Loading checkpoint shards: 100%|██████████| 19/19 [00:22<00:00,  1.56it/s]Loading checkpoint shards: 100%|██████████| 19/19 [00:22<00:00,  1.16s/it]
+Some parameters are on the meta device because they were offloaded to the cpu.
+chunks:   0%|          | 0/1 [00:00<?, ?it/s]/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/transformers/generation/configuration_utils.py:628: UserWarning: `do_sample` is set to `False`. However, `temperature` is set to `0.0` -- this flag is only used in sample-based generation modes. You should set `do_sample=True` or unset `temperature`.
+  warnings.warn(
+chunks: 100%|██████████| 1/1 [1:35:09<00:00, 5709.13s/it]chunks: 100%|██████████| 1/1 [1:35:09<00:00, 5709.13s/it]
+Wrote /data/home/haochenhuang/TCAD/evaluation/scripts/search_reward_results/humaneval-mixtral-8x7b-v0.1-reward-comp-n50000-reward-comm-n0_05.samples.jsonl
+Wrote 10 problems to /data/home/haochenhuang/human-eval/data/HumanEval_subset10.jsonl
+Output to /data/home/haochenhuang/TCAD/fastchat/fastchat/llm_judge/data/mt_bench/model_answer/mtbench-trace-mixtral.jsonl
+Loading checkpoint shards:   0%|          | 0/19 [00:00<?, ?it/s]Loading checkpoint shards:   5%|▌         | 1/19 [00:01<00:31,  1.76s/it]Loading checkpoint shards:  11%|█         | 2/19 [00:03<00:26,  1.56s/it]Loading checkpoint shards:  16%|█▌        | 3/19 [00:04<00:24,  1.50s/it]Loading checkpoint shards:  21%|██        | 4/19 [00:05<00:21,  1.45s/it]Loading checkpoint shards:  26%|██▋       | 5/19 [00:07<00:19,  1.43s/it]Loading checkpoint shards:  32%|███▏      | 6/19 [00:08<00:18,  1.40s/it]Loading checkpoint shards:  37%|███▋      | 7/19 [00:10<00:16,  1.41s/it]Loading checkpoint shards:  42%|████▏     | 8/19 [00:11<00:15,  1.40s/it]Loading checkpoint shards:  47%|████▋     | 9/19 [00:12<00:14,  1.41s/it]Loading checkpoint shards:  53%|█████▎    | 10/19 [00:14<00:12,  1.40s/it]Loading checkpoint shards:  58%|█████▊    | 11/19 [00:15<00:11,  1.40s/it]Loading checkpoint shards:  63%|██████▎   | 12/19 [00:17<00:09,  1.39s/it]Loading checkpoint shards:  68%|██████▊   | 13/19 [00:18<00:08,  1.39s/it]Loading checkpoint shards:  74%|███████▎  | 14/19 [00:19<00:06,  1.38s/it]Loading checkpoint shards:  79%|███████▉  | 15/19 [00:21<00:05,  1.37s/it]Loading checkpoint shards:  84%|████████▍ | 16/19 [00:22<00:03,  1.32s/it]Loading checkpoint shards:  89%|████████▉ | 17/19 [00:22<00:02,  1.03s/it]Loading checkpoint shards:  95%|█████████▍| 18/19 [00:23<00:00,  1.21it/s]Loading checkpoint shards: 100%|██████████| 19/19 [00:23<00:00,  1.49it/s]Loading checkpoint shards: 100%|██████████| 19/19 [00:23<00:00,  1.23s/it]
+Some parameters are on the meta device because they were offloaded to the cpu.
+chunks:   0%|          | 0/1 [00:00<?, ?it/s]/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/transformers/generation/configuration_utils.py:628: UserWarning: `do_sample` is set to `False`. However, `temperature` is set to `0.0` -- this flag is only used in sample-based generation modes. You should set `do_sample=True` or unset `temperature`.
+  warnings.warn(
+chunks: 100%|██████████| 1/1 [6:03:02<00:00, 21782.66s/it]chunks: 100%|██████████| 1/1 [6:03:02<00:00, 21782.66s/it]
+[data-dir] 数据集: humaneval -> /data1/datasets/humaneval/model_answer/humaneval-mixtral-8x7b-v0.1-reward-comp-n50000-reward-comm-n0_01.jsonl
+Loading checkpoint shards:   0%|          | 0/19 [00:00<?, ?it/s]Loading checkpoint shards:   5%|▌         | 1/19 [00:01<00:32,  1.82s/it]Loading checkpoint shards:  11%|█         | 2/19 [00:03<00:27,  1.61s/it]Loading checkpoint shards:  16%|█▌        | 3/19 [00:04<00:24,  1.52s/it]Loading checkpoint shards:  21%|██        | 4/19 [00:06<00:21,  1.46s/it]Loading checkpoint shards:  26%|██▋       | 5/19 [00:07<00:19,  1.42s/it]Loading checkpoint shards:  32%|███▏      | 6/19 [00:08<00:18,  1.39s/it]Loading checkpoint shards:  37%|███▋      | 7/19 [00:10<00:16,  1.36s/it]Loading checkpoint shards:  42%|████▏     | 8/19 [00:11<00:14,  1.35s/it]Loading checkpoint shards:  47%|████▋     | 9/19 [00:12<00:13,  1.34s/it]Loading checkpoint shards:  53%|█████▎    | 10/19 [00:13<00:11,  1.32s/it]Loading checkpoint shards:  58%|█████▊    | 11/19 [00:15<00:10,  1.34s/it]Loading checkpoint shards:  63%|██████▎   | 12/19 [00:16<00:09,  1.36s/it]Loading checkpoint shards:  68%|██████▊   | 13/19 [00:18<00:08,  1.36s/it]Loading checkpoint shards:  74%|███████▎  | 14/19 [00:19<00:06,  1.37s/it]Loading checkpoint shards:  79%|███████▉  | 15/19 [00:20<00:05,  1.37s/it]Loading checkpoint shards:  84%|████████▍ | 16/19 [00:22<00:03,  1.33s/it]Loading checkpoint shards:  89%|████████▉ | 17/19 [00:22<00:02,  1.04s/it]Loading checkpoint shards:  95%|█████████▍| 18/19 [00:22<00:00,  1.21it/s]Loading checkpoint shards: 100%|██████████| 19/19 [00:23<00:00,  1.50it/s]Loading checkpoint shards: 100%|██████████| 19/19 [00:23<00:00,  1.22s/it]
+Some parameters are on the meta device because they were offloaded to the cpu.
+chunks:   0%|          | 0/1 [00:00<?, ?it/s]/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/transformers/generation/configuration_utils.py:628: UserWarning: `do_sample` is set to `False`. However, `temperature` is set to `0.0` -- this flag is only used in sample-based generation modes. You should set `do_sample=True` or unset `temperature`.
+  warnings.warn(
+chunks: 100%|██████████| 1/1 [1:35:36<00:00, 5736.09s/it]chunks: 100%|██████████| 1/1 [1:35:36<00:00, 5736.09s/it]
+Wrote /data/home/haochenhuang/TCAD/evaluation/scripts/search_reward_results/humaneval-mixtral-8x7b-v0.1-reward-comp-n50000-reward-comm-n0_01.samples.jsonl
+Wrote 10 problems to /data/home/haochenhuang/human-eval/data/HumanEval_subset10.jsonl
+Output to /data/home/haochenhuang/TCAD/fastchat/fastchat/llm_judge/data/mt_bench/model_answer/mtbench-trace-mixtral.jsonl
+Loading checkpoint shards:   0%|          | 0/19 [00:00<?, ?it/s]Loading checkpoint shards:   5%|▌         | 1/19 [00:01<00:31,  1.72s/it]Loading checkpoint shards:  11%|█         | 2/19 [00:03<00:25,  1.48s/it]Loading checkpoint shards:  16%|█▌        | 3/19 [00:04<00:22,  1.39s/it]Loading checkpoint shards:  21%|██        | 4/19 [00:05<00:20,  1.34s/it]Loading checkpoint shards:  26%|██▋       | 5/19 [00:06<00:18,  1.35s/it]Loading checkpoint shards:  32%|███▏      | 6/19 [00:08<00:17,  1.35s/it]Loading checkpoint shards:  37%|███▋      | 7/19 [00:09<00:16,  1.35s/it]Loading checkpoint shards:  42%|████▏     | 8/19 [00:10<00:14,  1.34s/it]Loading checkpoint shards:  47%|████▋     | 9/19 [00:12<00:13,  1.34s/it]Loading checkpoint shards:  53%|█████▎    | 10/19 [00:13<00:11,  1.33s/it]Loading checkpoint shards:  58%|█████▊    | 11/19 [00:14<00:10,  1.33s/it]Loading checkpoint shards:  63%|██████▎   | 12/19 [00:16<00:09,  1.33s/it]Loading checkpoint shards:  68%|██████▊   | 13/19 [00:17<00:07,  1.32s/it]Loading checkpoint shards:  74%|███████▎  | 14/19 [00:18<00:06,  1.31s/it]Loading checkpoint shards:  79%|███████▉  | 15/19 [00:20<00:05,  1.32s/it]Loading checkpoint shards:  84%|████████▍ | 16/19 [00:21<00:03,  1.28s/it]Loading checkpoint shards:  89%|████████▉ | 17/19 [00:21<00:02,  1.00s/it]Loading checkpoint shards:  95%|█████████▍| 18/19 [00:22<00:00,  1.24it/s]Loading checkpoint shards: 100%|██████████| 19/19 [00:22<00:00,  1.53it/s]Loading checkpoint shards: 100%|██████████| 19/19 [00:22<00:00,  1.18s/it]
+Some parameters are on the meta device because they were offloaded to the cpu.
+chunks:   0%|          | 0/1 [00:00<?, ?it/s]/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/transformers/generation/configuration_utils.py:628: UserWarning: `do_sample` is set to `False`. However, `temperature` is set to `0.0` -- this flag is only used in sample-based generation modes. You should set `do_sample=True` or unset `temperature`.
+  warnings.warn(
+chunks:   0%|          | 0/1 [4:47:28<?, ?it/s]
+Traceback (most recent call last):
+  File "/data/home/haochenhuang/TCAD/fastchat/fastchat/llm_judge/gen_model_answer.py", line 555, in <module>
+    _run_one(question_file, answer_file)
+  File "/data/home/haochenhuang/TCAD/fastchat/fastchat/llm_judge/gen_model_answer.py", line 502, in _run_one
+    run_eval(
+  File "/data/home/haochenhuang/TCAD/fastchat/fastchat/llm_judge/gen_model_answer.py", line 129, in run_eval
+    get_answers_func(
+  File "/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 116, in decorate_context
+    return func(*args, **kwargs)
+  File "/data/home/haochenhuang/TCAD/fastchat/fastchat/llm_judge/gen_model_answer.py", line 284, in get_model_answers
+    output_ids = model.generate(
+  File "/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 116, in decorate_context
+    return func(*args, **kwargs)
+  File "/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/transformers/generation/utils.py", line 2326, in generate
+    result = self._sample(
+  File "/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/transformers/generation/utils.py", line 3289, in _sample
+    outputs = model_forward(**model_inputs, return_dict=True)
+  File "/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1739, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1750, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/accelerate/hooks.py", line 176, in new_forward
+    output = module._old_forward(*args, **kwargs)
+  File "/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/transformers/utils/deprecation.py", line 172, in wrapped_func
+    return func(*args, **kwargs)
+  File "/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/transformers/models/mixtral/modeling_mixtral.py", line 1067, in forward
+    outputs = self.model(
+  File "/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1739, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1750, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/transformers/models/mixtral/modeling_mixtral.py", line 695, in forward
+    layer_outputs = decoder_layer(
+  File "/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1739, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1750, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/data/home/haochenhuang/TCAD/fastchat/fastchat/llm_judge/moe_gating_hd.py", line 294, in wrapped_forward
+    next_gate = next_moe_module.gate
+  File "/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/accelerate/hooks.py", line 176, in new_forward
+    output = module._old_forward(*args, **kwargs)
+  File "/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/transformers/models/mixtral/modeling_mixtral.py", line 365, in forward
+    hidden_states, self_attn_weights = self.self_attn(
+  File "/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1739, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1750, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/accelerate/hooks.py", line 176, in new_forward
+    output = module._old_forward(*args, **kwargs)
+  File "/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/transformers/models/mixtral/modeling_mixtral.py", line 297, in forward
+    attn_output, attn_weights = attention_interface(
+  File "/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/transformers/integrations/sdpa_attention.py", line 31, in sdpa_attention_forward
+    value = repeat_kv(value, module.num_key_value_groups)
+  File "/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/transformers/integrations/sdpa_attention.py", line 15, in repeat_kv
+    return hidden_states.reshape(batch, num_key_value_heads * n_rep, slen, head_dim)
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 220.00 MiB. GPU 1 has a total capacity of 79.25 GiB of which 136.75 MiB is free. Including non-PyTorch memory, this process has 40.71 GiB memory in use. Process 1569886 has 38.39 GiB memory in use. Of the allocated memory 39.65 GiB is allocated by PyTorch, and 570.21 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[data-dir] 数据集: humaneval -> /data1/datasets/humaneval/model_answer/humaneval-mixtral-8x7b-v0.1-reward-comp-n30000-reward-comm-n0_05.jsonl
+Loading checkpoint shards:   0%|          | 0/19 [00:00<?, ?it/s]Loading checkpoint shards:   5%|▌         | 1/19 [00:01<00:31,  1.78s/it]Loading checkpoint shards:  11%|█         | 2/19 [00:03<00:25,  1.48s/it]Loading checkpoint shards:  16%|█▌        | 3/19 [00:04<00:22,  1.38s/it]Loading checkpoint shards:  21%|██        | 4/19 [00:05<00:19,  1.33s/it]Loading checkpoint shards:  26%|██▋       | 5/19 [00:06<00:18,  1.32s/it]Loading checkpoint shards:  32%|███▏      | 6/19 [00:08<00:17,  1.32s/it]Loading checkpoint shards:  37%|███▋      | 7/19 [00:09<00:15,  1.31s/it]Loading checkpoint shards:  42%|████▏     | 8/19 [00:11<00:15,  1.45s/it]Loading checkpoint shards:  47%|████▋     | 9/19 [00:12<00:14,  1.41s/it]Loading checkpoint shards:  53%|█████▎    | 10/19 [00:13<00:12,  1.39s/it]Loading checkpoint shards:  58%|█████▊    | 11/19 [00:15<00:11,  1.39s/it]Loading checkpoint shards:  63%|██████▎   | 12/19 [00:16<00:09,  1.37s/it]Loading checkpoint shards:  68%|██████▊   | 13/19 [00:17<00:08,  1.36s/it]Loading checkpoint shards:  74%|███████▎  | 14/19 [00:19<00:06,  1.34s/it]Loading checkpoint shards:  79%|███████▉  | 15/19 [00:20<00:05,  1.33s/it]Loading checkpoint shards:  84%|████████▍ | 16/19 [00:21<00:03,  1.28s/it]Loading checkpoint shards:  89%|████████▉ | 17/19 [00:22<00:01,  1.00it/s]Loading checkpoint shards:  95%|█████████▍| 18/19 [00:22<00:00,  1.25it/s]Loading checkpoint shards: 100%|██████████| 19/19 [00:22<00:00,  1.56it/s]Loading checkpoint shards: 100%|██████████| 19/19 [00:22<00:00,  1.19s/it]
+Some parameters are on the meta device because they were offloaded to the cpu.
+chunks:   0%|          | 0/1 [00:00<?, ?it/s]/data/home/haochenhuang/.conda/envs/hdmoe/lib/python3.10/site-packages/transformers/generation/configuration_utils.py:628: UserWarning: `do_sample` is set to `False`. However, `temperature` is set to `0.0` -- this flag is only used in sample-based generation modes. You should set `do_sample=True` or unset `temperature`.
+  warnings.warn(

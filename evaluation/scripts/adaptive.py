@@ -1,5 +1,6 @@
 import sys
 import os
+import argparse
 
 # 获取当前脚本的绝对路径，并向上追溯到项目根目录（HD-MoE/）
 current_dir = os.path.dirname(os.path.abspath(__file__))  # balance2.py 的目录
@@ -90,8 +91,13 @@ def mem_overhead(BWmem,D,batch,h,L,intermediate,E):
 
 
 
+parser = argparse.ArgumentParser(description="Adaptive MoE evaluation")
+parser.add_argument("--model", type=str, default="mixtral", choices=["ds", "mixtral", "qwen"],
+                    help="Model type: ds (DeepSeekMoE), mixtral, or qwen (default: mixtral)")
+args = parser.parse_args()
+
 batch=int(32)
-model="mixtral"
+model = args.model
 if model=="ds":
     E,e,SE,h,IS,mlp_first,num_layers=64,6,0,2048,1408,True,26  #DeepSeekMoE 
 elif model=="mixtral":
@@ -100,7 +106,7 @@ elif model=="qwen":
     E,e,SE,h,IS,mlp_first,num_layers=64,8,0,3584,2560,False,28 #Qwen2
  
 dataset=["reasoning","math","coding","writing","roleplay"][0]
-sample1=["reasoning","math","coding","writing","roleplay"][1]
+sample1=["reasoning","math","coding","writing","roleplay"][0]
 mesh_shape=(4,8)
 D=mesh_shape[0]*mesh_shape[1]
 # data_path=f'expert_trace/{model}/predict/experts_{dataset}_{model}_pre.json'
@@ -139,8 +145,35 @@ while len(s)!=batch:
     s=sample[str(1+optimizer.mlp_first)][sample_id]
 
 BWmem=625e9
-L=1024
-t_inf=comp_overhead(optimizer.comp,optimizer.D,batch,optimizer.h,L,optimizer.IS/optimizer.h,optimizer.e)+mem_overhead(BWmem,optimizer.D,batch,optimizer.h,L,optimizer.IS/optimizer.h,optimizer.E)
+decode_L = 64
+L=decode_L
+prefill_L = batch
+intermediate = optimizer.IS / optimizer.h
+is_prefill=False
+att_comp = {
+    "ds":(2048*2048+512*4096+2048*3072+2048*2816*2+2048*2*decode_L*2)*batch/(D * optimizer.comp),#MLA+Shared FFN
+    "mixtral":(3*batch*h**2+h**2*batch+batch*h*decode_L*2)/(D * optimizer.comp),
+    "qwen":(batch*h**2+2*batch*0.25*h**2+0.25*h**2*batch+2560*batch*h*2+0.25*batch*h*decode_L*2)/(D * optimizer.comp),#GQA+Shared FFN
+}
+att_comp_prefill = {
+    "ds":(2048*2048+512*4096+2048*3072+2048*2816*2+2048*2)*prefill_L/(D * optimizer.comp),#MLA+Shared FFN
+    "mixtral":(3*prefill_L*h**2+h**2*prefill_L+prefill_L**2*h*2)/(D * optimizer.comp),
+    "qwen":(prefill_L*h**2+2*prefill_L*0.25*h**2+0.25*h**2*prefill_L+2560*prefill_L*h*2+0.25*prefill_L*h*prefill_L*2)/(D * optimizer.comp),#GQA+Shared FFN
+}
+mem={
+    "ds":(2048*(3072+batch)+2048*(2048+batch)+512*4096+512*2*decode_L+2 * (E+2) * intermediate * h**2 + batch * h * (intermediate + 1))/(D * BWmem),
+    "mixtral":(2 * batch * h * decode_L+3 * h * (batch + h)+h * (batch + h)+2 * E * intermediate * h**2 + batch * h * (intermediate + 1))/(D * BWmem),
+    "qwen":(2 * batch * h*0.25 * decode_L+1.5 * h * (batch + h)+0.25*h * (batch + h)+2 * (E+8) * intermediate * h**2 + batch * h * (intermediate + 1))/(D * BWmem),
+}
+mem_prefill={
+    "ds":(2048*(3072+prefill_L)+2048*(2048+prefill_L)+512*4096+512*2*prefill_L+2 * (E+2) * intermediate * h**2 + prefill_L * h * (intermediate + 1))/(D * BWmem),
+    "mixtral":(2 * prefill_L * h * decode_L+3 * h * (prefill_L + h)+h * (prefill_L + h)+2 * E * intermediate * h**2 + prefill_L * h * (intermediate + 1))/(D * BWmem),
+    "qwen":(2 * prefill_L * h*0.25 * prefill_L+1.5 * h * (prefill_L + h)+0.25*h * (prefill_L + h)+2 * (E+8) * intermediate * h**2 + prefill_L * h * (intermediate + 1))/(D * BWmem),
+}
+# t_inf=comp_overhead(optimizer.comp,optimizer.D,batch,optimizer.h,L,optimizer.IS/optimizer.h,optimizer.e)+mem_overhead(BWmem,optimizer.D,batch,optimizer.h,L,optimizer.IS/optimizer.h,optimizer.E)+2 * optimizer.e * batch * optimizer.IS * optimizer.h**2
+# att_mem = mem[model] + att_comp[model]
+att_mem = mem_prefill[model] + att_comp_prefill[model] if is_prefill else mem[model] + att_comp[model]
+t_inf = (2 * e * batch * intermediate * h**2)/(D * optimizer.comp) + att_mem
 k=1
 # pdb.set_trace()
 while optimizer.optimal_broadcast_chunk(k=k)<t_inf:
@@ -184,14 +217,16 @@ for layer_id in tqdm(range(optimizer.layer)):
     if len(s)==batch:
         random_samples=s
         # pdb.set_trace()
-        try:
+        if str(layer_id+optimizer.mlp_first) in pre_sample:
             next_samples=pre_sample[str(layer_id+optimizer.mlp_first)][sample_id]
-        except:
-            pdb.set_trace()
+            adaptive_random_samples=adaptive_sample[str(layer_id+optimizer.mlp_first)][sample_id]
+            adaptive_next_samples=adaptive_pre_sample[str(layer_id+optimizer.mlp_first)][sample_id]
+        else:
+            # pdb.set_trace()
+            next_samples=[]
+            adaptive_random_samples=[]
+            adaptive_next_samples=[]
 
-        # next_samples=pre_sample[str(layer_id+optimizer.mlp_first)][sample_id]
-        adaptive_random_samples=adaptive_sample[str(layer_id+optimizer.mlp_first)][sample_id]
-        adaptive_next_samples=adaptive_pre_sample[str(layer_id+optimizer.mlp_first)][sample_id]
     for sublist in random_samples:
         comp_map[sublist]+=2*optimizer.h*optimizer.IS
     for sublist in adaptive_random_samples:
@@ -204,7 +239,7 @@ for layer_id in tqdm(range(optimizer.layer)):
 
 
     tp_comp_dynamic+=optimizer.compute_time_dynamic(P_tp,comp_map)[layer_id]
-    tp_comm_dynamic+=2*optimizer.comm_time_dynamic(P_tp,random_samples)[layer_id]
+    tp_comm_dynamic+=4*optimizer.comm_time_dynamic(P_tp,random_samples)[layer_id]
 
 
 

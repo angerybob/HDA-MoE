@@ -138,17 +138,40 @@ P_tp = np.ones((optimizer.layer, optimizer.E, optimizer.D)) / optimizer.D
 P_ep = EP_deployment(optimizer.layer, optimizer.E, optimizer.D)
 
 optimizer.X, optimizer.Y = mesh_shape
-L = 1024
+decode_L = 64
+prefill_L = batch
 intermediate = optimizer.IS / optimizer.h
 BWmem = 625e9
-att_mem = optimizer.layer * (
-    comp_overhead(optimizer.comp, optimizer.D, optimizer.B, optimizer.h, L, intermediate, e)
-    + mem_overhead(BWmem, optimizer.D, optimizer.B, optimizer.h, L, intermediate, optimizer.E)
-)
+att_comp = {
+    "ds":(2048*2048+512*4096+2048*3072+2048*2816*2+2048*2*decode_L*2)*batch/(D * comp),#MLA+Shared FFN
+    "mixtral":(3*batch*h**2+h**2*batch+batch*h*decode_L*2)/(D * comp),
+    "qwen":(batch*h**2+2*batch*0.25*h**2+0.25*h**2*batch+2560*batch*h*2+0.25*batch*h*decode_L*2)/(D * comp),#GQA+Shared FFN
+}
+att_comp_prefill = {
+    "ds":(2048*2048+512*4096+2048*3072+2048*2816*2+2048*2)*prefill_L/(D * comp),#MLA+Shared FFN
+    "mixtral":(3*prefill_L*h**2+h**2*prefill_L+prefill_L**2*h*2)/(D * comp),
+    "qwen":(prefill_L*h**2+2*prefill_L*0.25*h**2+0.25*h**2*prefill_L+2560*prefill_L*h*2+0.25*prefill_L*h*prefill_L*2)/(D * comp),#GQA+Shared FFN
+}
+mem={
+    "ds":(2048*(3072+batch)+2048*(2048+batch)+512*4096+512*2*decode_L+2 * (E+2) * intermediate * h**2 + batch * h * (intermediate + 1))/(D * BWmem),
+    "mixtral":(2 * batch * h * decode_L+3 * h * (batch + h)+h * (batch + h)+2 * E * intermediate * h**2 + batch * h * (intermediate + 1))/(D * BWmem),
+    "qwen":(2 * batch * h*0.25 * decode_L+1.5 * h * (batch + h)+0.25*h * (batch + h)+2 * (E+8) * intermediate * h**2 + batch * h * (intermediate + 1))/(D * BWmem),
+}
+mem_prefill={
+    "ds":(2048*(3072+prefill_L)+2048*(2048+prefill_L)+512*4096+512*2*prefill_L+2 * (E+2) * intermediate * h**2 + prefill_L * h * (intermediate + 1))/(D * BWmem),
+    "mixtral":(2 * prefill_L * h * decode_L+3 * h * (prefill_L + h)+h * (prefill_L + h)+2 * E * intermediate * h**2 + prefill_L * h * (intermediate + 1))/(D * BWmem),
+    "qwen":(2 * prefill_L * h*0.25 * prefill_L+1.5 * h * (prefill_L + h)+0.25*h * (prefill_L + h)+2 * (E+8) * intermediate * h**2 + prefill_L * h * (intermediate + 1))/(D * BWmem),
+}
+# att_mem = optimizer.layer * (
+#     comp_overhead(optimizer.comp, optimizer.D, optimizer.B, optimizer.h, L, intermediate, e)
+#     + mem_overhead(BWmem, optimizer.D, optimizer.B, optimizer.h, L, intermediate, optimizer.E)
+# )
+att_mem = mem[model] + att_comp[model]
 
-t_inf = comp_overhead(
-    optimizer.comp, optimizer.D, optimizer.B, optimizer.h, L, intermediate, optimizer.e
-) + mem_overhead(BWmem, optimizer.D, optimizer.B, optimizer.h, L, intermediate, optimizer.E)
+# t_inf = comp_overhead(
+#     optimizer.comp, optimizer.D, optimizer.B, optimizer.h, L, intermediate, optimizer.e
+# ) + mem_overhead(BWmem, optimizer.D, optimizer.B, optimizer.h, L, intermediate, optimizer.E)+2 * e * batch * intermediate * h**2
+t_inf = 2 * e * batch * intermediate * h**2 + att_mem
 k = 1
 while optimizer.optimal_broadcast_chunk(k=k) < t_inf:
     k += 1
