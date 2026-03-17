@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # 可选：只跑指定模型，默认 mixtral qwen ds
-MODELS="${*:-mixtral qwen ds}"
+MODELS="${*:-qwen mixtral ds}"
 export PYTHONPATH="${TCAD_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}/fastchat:${PYTHONPATH:-}"
 
 echo "========== 开始时间: $(date) =========="
