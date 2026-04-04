@@ -57,7 +57,7 @@ ds_mixtral_mesh_cfgs=(
 for cfg in "${qwen_mesh_cfgs[@]}"; do
   read -r suffix rows cols comp bw <<<"$cfg"
   run_sim \
-    "${BASE}/qwen/score/reconstructed_softmax_reasoning.npz" \
+    "${BASE}/qwen/score/gating_score_reasoning.npz" \
     "${BASE}/qwen/hd_gating" \
     "$suffix" \
     -130000 -0.001 8 qwen \
@@ -69,7 +69,7 @@ done
 for cfg in "${ds_mixtral_mesh_cfgs[@]}"; do
   read -r suffix rows cols comp bw <<<"$cfg"
   run_sim \
-    "${BASE}/ds/score/reconstructed_softmax_reasoning.npz" \
+    "${BASE}/ds/score/gating_score_reasoning.npz" \
     "${BASE}/ds/hd_gating" \
     "$suffix" \
     -30000 -0.025 6 ds \
@@ -81,7 +81,7 @@ done
 for cfg in "${ds_mixtral_mesh_cfgs[@]}"; do
   read -r suffix rows cols comp bw <<<"$cfg"
   run_sim \
-    "${BASE}/mixtral/score/reconstructed_softmax_reasoning.npz" \
+    "${BASE}/mixtral/score/gating_score_reasoning.npz" \
     "${BASE}/mixtral/hd_gating" \
     "$suffix" \
     -1160000 -0.3 2 mixtral \

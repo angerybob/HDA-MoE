@@ -10,9 +10,8 @@ Python and shell utilities under `TCAD/evaluation/scripts` for MoE placement, ro
 
 **Purpose:** Quick **hybrid parallel** evaluation—load routing traces and NPZ placements, compare TP/EP vs node/link-balanced latency under static vs dynamic expert routing (first-pass sanity check for placement quality).
 
-**Typical inputs:** Trace at `<deployment-root>/<trace-subdir>/experts_<dataset>_<model>.json` (defaults assume a separate `deployment` tree; override for your layout).
+**Typical inputs:** Trace at `expert_trace/experts_<dataset>_<model>.json`.
 
-**Example (trace at `expert_trace/<model>/experts_<dataset>_<model>.json`):**
 
 ```bash
 cd /data/home/haochenhuang/TCAD
@@ -49,7 +48,7 @@ python3 evaluation/scripts/e2e_hda.py \
   --mesh 4 8 \
   --comp 2.5 \
   --bw 75 \
-  --results-json evaluation/results/result_hda_e2e4.json
+  --results-json evaluation/results/result_hda_e2e.json
 ```
 
 ---
@@ -64,7 +63,6 @@ python3 evaluation/scripts/e2e_hda.py \
 **Example:**
 
 ```bash
-cd /data/home/haochenhuang/TCAD
 python3 evaluation/scripts/ablation.py \
   --cwd . \
   --model ds \
@@ -84,7 +82,6 @@ python3 evaluation/scripts/ablation.py \
 **Example:**
 
 ```bash
-cd /data/home/haochenhuang/TCAD
 python3 evaluation/scripts/dynamic.py \
   --cwd . \
   --model ds \
@@ -106,7 +103,6 @@ python3 evaluation/scripts/dynamic.py \
 **Example:**
 
 ```bash
-cd /data/home/haochenhuang/TCAD
 python3 evaluation/scripts/adaptive.py \
   --cwd . \
   --model mixtral \
@@ -128,23 +124,40 @@ python3 evaluation/scripts/adaptive.py \
 **Example:**
 
 ```bash
-bash /data/home/haochenhuang/TCAD/evaluation/scripts/run_gen_model_answer_mtbench_categories.sh
+bash evaluation/scripts/run_gen_model_answer_mtbench_categories.sh
 ```
+
+---
+
+### `trace_gating_softmax_to_npz.py`
+
+**Purpose:** Convert a **collected trace JSON** into **NPZ** for downstream HD gating simulation. It reads FastChat `gen_model_answer.py` output that was recorded with `--trace-gating-softmax` (must contain top-level `selected_gating_softmax`) and writes per-layer `layer_<id>` float32 arrays with shape `(n_token, E)`, matching the layout produced by `reconstruct_expert_scores_from_topk.py --output-npz`. Feed that NPZ into `simulate_hd_gating_from_scores.py` as `--scores-npz`.
+
+**Example:**
+
+```bash
+python3 evaluation/scripts/trace_gating_softmax_to_npz.py \
+  --trace expert_trace/mixtral/score/experts_reasoning_score.json \
+  --output-npz expert_trace/mixtral/score/gating_full_softmax_reasoning.npz
+```
+
+Optional: `--layers 0,1,2` to export a subset; `--meta-json` to dump metadata separately.
 
 ---
 
 ### `simulate_hd_gating_from_scores.py`
 
-**Purpose:** **Simulate hardware-aware MoE gating (HD-MoE)** on CPU/CUDA from reconstructed per-layer softmax scores (NPZ), matching FastChat’s `moe_gating_hd.apply_hd_moe_routing`. Outputs JSON aligned with `experts_*_score.json` (`original_selected_experts`, `selected_experts`, optional metadata).
+**Purpose:** **Simulate hardware-aware MoE gating** on CPU/CUDA from per-layer softmax scores stored as **NPZ**, matching FastChat’s `moe_gating_hd.apply_hd_moe_routing`. Outputs JSON aligned with `experts_*_score.json` (`original_selected_experts`, `selected_experts`, optional metadata).
 
-**Requires:** Compatible P-matrix NPZ layout as expected by `moe_gating_hd` (see repo docs / `TCAD/results/...`).
+**NPZ sources:** Use `trace_gating_softmax_to_npz.py` on traces collected with `--trace-gating-softmax`, or NPZ from `reconstruct_expert_scores_from_topk.py` (reconstructed from top-k traces).
+
+**Requires:** Compatible P-matrix NPZ layout as expected by `moe_gating_hd`.
 
 **Example:**
 
 ```bash
-cd /data/home/haochenhuang/TCAD
 python3 evaluation/scripts/simulate_hd_gating_from_scores.py \
-  --scores-npz expert_trace/qwen/score/reconstructed_softmax_reasoning.npz \
+  --scores-npz expert_trace/qwen/score/gating_score_reasoning.npz \
   --output-json expert_trace/qwen/hd_gating/experts_reasoning_hd_sim_custom.json \
   --model-name qwen \
   --top-k 8 \
@@ -168,7 +181,7 @@ python3 evaluation/scripts/simulate_hd_gating_from_scores.py \
 **Example:**
 
 ```bash
-bash /data/home/haochenhuang/TCAD/evaluation/scripts/simulate.sh
+bash evaluation/scripts/simulate.sh
 ```
 
 ---

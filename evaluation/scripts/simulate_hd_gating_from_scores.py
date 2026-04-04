@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-用重构得到的各层专家 softmax（如 reconstruct_expert_scores_from_topk.py 输出的 npz）
-在 CPU/CUDA 上复现 fastchat 的 hardware-aware MoE gating（HD-MoE）：对每层调用 moe_gating_hd.apply_hd_moe_routing。
-默认 **整层所有 token 在同一 batch**（与线上一致需令 `HD_MOE_BATCH_SIZE` ≥ batch 行数；本脚本在每次前向按当前 batch 大小同步 `set_hd_moe_overrides(batch_size=...)`）。
+Replay fastchat hardware-aware MoE gating (HD-MoE) on CPU/CUDA from per-layer expert softmax
+(e.g. npz from reconstruct_expert_scores_from_topk.py), calling moe_gating_hd.apply_hd_moe_routing per layer.
+By default **all tokens in a layer share one batch** (production needs HD_MOE_BATCH_SIZE >= rows; this script
+calls set_hd_moe_overrides(batch_size=...) each forward to match the current batch size).
 
-输出：
-  - 推荐 **JSON**（与 experts_*_score.json 对齐）：仅含
-    - **original_selected_experts**：加 reward **前** 的 top-k 专家索引（每层与 scores npz 相同 token 顺序的扁平列表）
-    - **selected_experts**：加 reward **后** 的 top-k（hardware-aware gating 路由结果）
-    - **simulation_meta**（可选）：reward、token 统计等
-  - 可选 **NPZ**：保留各层 `layer_k_topk_before/after` 与 softmax 取值，便于数值分析
+Outputs:
+  - **JSON** (aligned with experts_*_score.json):
+    - **original_selected_experts**: top-k expert ids before reward (flat per layer, same token order as scores npz)
+    - **selected_experts**: top-k after reward (HD routing)
+    - **simulation_meta** (optional): rewards, token stats, etc.
+  - Optional **NPZ**: per-layer topk before/after and softmax values for analysis
 
-依赖：需存在与 moe_gating_hd._get_npz_path 一致的 P 矩阵 npz（见 TCAD/results/...）。
+Requires P-matrix npz paths consistent with moe_gating_hd._get_npz_path (see TCAD/results/...).
 
-用法示例：
+Example:
   python3 simulate_hd_gating_from_scores.py \\
-    --scores-npz /path/to/reconstructed_softmax.npz \\
+    --scores-npz /path/to/gating_score_reasoning.npz \\
     --output-json /path/to/hd_sim_experts.json \\
     --reward-comp 8000 --reward-comm -0.05 \\
     --top-k 8 --model-name qwen
@@ -33,7 +34,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import torch
 import pdb
-# fastchat：evaluation/scripts -> TCAD/fastchat
+# fastchat package: evaluation/scripts -> TCAD/fastchat
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _TCAD_ROOT = os.path.abspath(os.path.join(_SCRIPT_DIR, "..", ".."))
 _FASTCHAT_PKG = os.path.join(_TCAD_ROOT, "fastchat")
@@ -65,8 +66,8 @@ def _simulate_chunk(
     bool,
 ]:
     """
-    返回 (topk_before, softmax_at_before, topk_after, softmax_at_after, hd_applied)。
-    hd_applied 为 False 时 after 与 before 相同，softmax_at_after 在 before 上 gather。
+    Returns (topk_before, softmax_at_before, topk_after, softmax_at_after, hd_applied).
+    If hd_applied is False, after equals before; softmax_at_after gathered from before.
     """
     tb = torch.topk(original_scores, top_k, dim=-1, sorted=False)
     topk_before = tb.indices
@@ -83,7 +84,7 @@ def _simulate_chunk(
     )
     if res is None:
         ta = topk_before
-        # 与「未走 HD」一致：after 即 before
+        # Non-HD path: after equals before
         va = vals_before
         return topk_before, vals_before, ta, va, False
 
@@ -107,7 +108,7 @@ def run_layer(
     hd_comp: Optional[float] = None,
     hd_bw: Optional[float] = None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, int]:
-    """mat: (n_tokens, E). chunk_size<=0 表示本层所有 token 一次送入 HD（同一 batch）。"""
+    """mat: (n_tokens, E). chunk_size<=0 means entire layer in one HD batch."""
     n, E = mat.shape
     topk_before = np.zeros((n, top_k), dtype=np.int32)
     topk_after = np.zeros((n, top_k), dtype=np.int32)
@@ -125,7 +126,7 @@ def run_layer(
             f"batch_size={bs} chunk_step={step}",
             file=sys.stderr,
         )
-        # 与 apply_hd_moe_routing 内判断一致：须 HD_MOE_BATCH_SIZE >= batch 行数
+        # Match apply_hd_moe_routing: HD_MOE_BATCH_SIZE >= batch rows
         moe_gating_hd.set_hd_moe_overrides(
             batch_size=bs,
             mesh_shape=mesh,
@@ -165,7 +166,7 @@ def _topk_arrays_to_trace_dict(
     topk_before: Dict[str, np.ndarray],
     topk_after: Dict[str, np.ndarray],
 ) -> Tuple[Dict[str, List[List[int]]], Dict[str, List[List[int]]]]:
-    """层 id 字符串 -> 与 trace 一致的 token 行列表（每行为 k 个 int）。"""
+    """Layer id string -> token rows as trace (each row k ints)."""
     orig: Dict[str, List[List[int]]] = {}
     sel: Dict[str, List[List[int]]] = {}
     for lk in layer_keys:
@@ -193,70 +194,72 @@ def load_scores_npz(path: str) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
         if k.startswith("layer_"):
             layers[k] = np.asarray(z[k])
     if not layers:
-        raise ValueError(f"npz 中未找到 layer_* 数组: {path}")
+        raise ValueError(f"no layer_* arrays in npz: {path}")
     return layers, meta
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    p = argparse.ArgumentParser(description="对重构 softmax 做 hardware-aware gating 仿真，输出 reward 前后 top-k")
+    p = argparse.ArgumentParser(
+        description="HD-MoE simulation on reconstructed softmax; top-k before/after reward"
+    )
     p.add_argument(
         "--scores-npz",
         type=str,
         required=True,
-        help="reconstruct_expert_scores_from_topk.py 输出的 npz；qwen/mixtral 多为 layer_0..，ds 多为 layer_1..（与 trace JSON 键对齐）",
+        help="npz from reconstruct_expert_scores_from_topk.py; qwen/mixtral often layer_0.., ds often layer_1.. (trace JSON keys)",
     )
     p.add_argument(
         "--output-json",
         type=str,
         default=None,
-        help="写出与 experts_*_score.json 对齐的 JSON（original_selected_experts + selected_experts）",
+        help="JSON aligned with experts_*_score.json (original_selected_experts + selected_experts)",
     )
     p.add_argument(
         "--output-npz",
         type=str,
         default=None,
-        help="可选：额外写出含逐层 numpy 数组的 npz",
+        help="Optional: extra npz with per-layer numpy arrays",
     )
-    p.add_argument("--top-k", type=int, default=8, help="top-k，须与模型一致")
+    p.add_argument("--top-k", type=int, default=8, help="top-k; must match model")
     p.add_argument(
         "--model-name",
         type=str,
         default="qwen",
         choices=["qwen", "mixtral", "ds"],
-        help="HD_MOE_CONFIGS 键，决定 E、P 路径等",
+        help="HD_MOE_CONFIGS key (E, P paths, ...)",
     )
     p.add_argument("--reward-comp", type=float, default=0.0)
     p.add_argument("--reward-comm", type=float, default=0.0)
     p.add_argument("--hd-mesh-rows", type=int, default=None)
     p.add_argument("--hd-mesh-cols", type=int, default=None)
-    p.add_argument("--hd-comp", type=float, default=None, help="TFLOPS，覆盖默认 comp")
-    p.add_argument("--hd-bw", type=float, default=None, help="BPS，覆盖默认 BW")
+    p.add_argument("--hd-comp", type=float, default=None, help="TFLOPS; overrides default comp")
+    p.add_argument("--hd-bw", type=float, default=None, help="BPS; overrides default BW")
     p.add_argument(
         "--chunk-size",
         type=int,
         default=0,
-        help="每批 token 数。0 或负数表示本层**全部 token 同一 batch**（推荐，与「所有 score 一起算 HD」一致）；"
-        "为正整数则按该步长切分；每次前向会同步 HD_MOE_BATCH_SIZE=当前 batch 行数。",
+        help="Tokens per batch. <=0: whole layer one batch (recommended). "
+        ">0: stride; each forward sets HD_MOE_BATCH_SIZE to current rows.",
     )
     p.add_argument(
         "--max-tokens",
         type=int,
         default=None,
         metavar="N",
-        help="每层只处理前 N 个 token（调试用，显著加速）；默认处理该层全部 token",
+        help="First N tokens per layer only (debug); default all tokens",
     )
     p.add_argument(
         "--device",
         type=str,
         default="cpu",
         choices=["cuda", "cpu"],
-        help="P 矩阵与计算所在设备",
+        help="Device for P matrix and compute",
     )
     p.add_argument(
         "--layers",
         type=str,
         default=None,
-        help="只处理这些层，逗号分隔，如 0,1,2；默认 npz 中全部 layer_*",
+        help="Comma-separated layer ids, e.g. 0,1,2; default all layer_* in npz",
     )
     args = p.parse_args(argv)
 
@@ -264,10 +267,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     print(f"[cmd] {shlex.join([sys.executable] + _cmd_argv)}", file=sys.stderr)
 
     if not args.output_json and not args.output_npz:
-        p.error("请至少指定 --output-json 或 --output-npz")
+        p.error("specify at least one of --output-json or --output-npz")
 
     if args.max_tokens is not None and args.max_tokens <= 0:
-        p.error("--max-tokens 须为正整数或省略")
+        p.error("--max-tokens must be a positive integer or omitted")
 
     mesh = None
     if args.hd_mesh_rows is not None and args.hd_mesh_cols is not None:
@@ -302,13 +305,13 @@ def main(argv: Optional[List[str]] = None) -> int:
             )
         else:
             print(f"[layer] {lk} shape={mat.shape} ...", file=sys.stderr)
-        # ds：expert_trace / npz 为 layer_1..L，与 JSON 键 "1".."L" 一致；TCAD/results 下 P 矩阵文件名为
-        # in_layer_0..L-1（与 e2e 中 layer_id 循环一致）。qwen/mixtral 的 npz 为 layer_0 起，无需偏移。
+        # ds: scores npz layer_1..L matches JSON keys "1".."L"; P npz uses in_layer_0..L-1 (e2e layer_id loop).
+        # qwen/mixtral npz starts at layer_0; no offset.
         hd_layer_id = lid - 1 if args.model_name == "ds" else lid
         if hd_layer_id < 0:
             raise ValueError(
-                f"模型 {args.model_name!r} 下 {lk} 无法映射到 HD 层索引（hd_layer_id={hd_layer_id}）；"
-                "ds 的分数 npz 应从 layer_1 开始。"
+                f"cannot map {lk} to HD layer index for model {args.model_name!r} (hd_layer_id={hd_layer_id}); "
+                "ds score npz should start at layer_1."
             )
         tb, ta, sb, sa, ok, fail = run_layer(
             mat,
@@ -371,7 +374,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"[write] NPZ -> {outp}", file=sys.stderr)
 
     print(
-        f"[done] HD 生效 token 累计: {total_ok}, 回退(未进 HD): {total_fail}",
+        f"[done] HD applied tokens: {total_ok}, fallback (no HD): {total_fail}",
         file=sys.stderr,
     )
     return 0
