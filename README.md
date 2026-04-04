@@ -93,20 +93,33 @@ nohup optimizer.sh > script.log 2>&1 &
 
 使用评估脚本验证部署策略的性能，支持端到端 latency、消融实验和动态调度评估：
 
+共享模块 **`evaluation/moe_placement_utils.py`**：专家并行（EP）放置矩阵、随机 mesh 放置、以及 `comp_overhead` / `mem_overhead` 等解析式（被多个评估脚本 `import`）。
+
 #### 评估命令
+在仓库根目录执行（或通过各脚本的 `--cwd` / `--deployment-root` 指向数据根目录）。使用 `--help` 查看算力、带宽、mesh、`results-json` 等参数。
+
 ```bash
-# 评估端到端TBT
+# 评估端到端 TBT
 python evaluation/scripts/e2e.py
 
-# 消融实验（验证各模块作用）
+# 硬件感知路由端到端（默认输出 evaluation/results/result_hda_e2e4.json）
+python evaluation/scripts/e2e_hda.py
+
+# 消融实验
 python evaluation/scripts/ablation.py
 
-# 动态调度策略评估
+# 动态调度 / 预测专家 trace（result2_dynamic.json）
 python evaluation/scripts/dynamic.py
+
+# 自适应路由 trace（追加写入 evaluation/results/result_adaptive.json，见 adaptive.py --help）
+python evaluation/scripts/adaptive.py
+
+# sim：deployment 目录下的 trace + NPZ（默认 --deployment-root 见 sim.py --help）
+python evaluation/scripts/sim.py
 ```
 
-- **评估结果位置**：`evaluation/results/` 文件夹
-- **评估前配置**：需在对应脚本中修改硬件配置（算力、带宽等）、模型类型及数据集，确保与生成的部署策略匹配。
+- **评估结果位置**：默认仍在 `evaluation/results/`（可用各脚本的 `--results-json` 覆盖）。
+- **评估前配置**：CLI 参数需与生成部署 / trace 时使用的算力、带宽、模型与数据集一致。
 
 
 ### 5. 结果可视化（Visualization）
