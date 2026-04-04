@@ -111,7 +111,7 @@ python evaluation/scripts/ablation.py
 # 动态调度 / 预测专家 trace（result2_dynamic.json）
 python evaluation/scripts/dynamic.py
 
-# 自适应路由 trace（追加写入 evaluation/results/result_adaptive.json，见 adaptive.py --help）
+# Adaptive routing trace (appends to evaluation/results/result_adaptive.json; see adaptive.py --help)
 python evaluation/scripts/adaptive.py
 
 # sim：deployment 目录下的 trace + NPZ（默认 --deployment-root 见 sim.py --help）
