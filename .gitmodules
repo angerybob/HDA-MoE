@@ -1,3 +1,6 @@
 [submodule "fastchat"]
 	path = fastchat
 	url = git@github.com:angerybob/fastchat.git
+[submodule "human-eval"]
+	path = human-eval
+	url = git@github.com:angerybob/human-eval.git
