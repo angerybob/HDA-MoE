@@ -1,176 +1,131 @@
-## Quick Start
+# TCAD / HDA-MoE — Source Code
 
-### 1. 环境搭建（Environment Setup）
+This repository contains the **source code** for the **TCAD** journal manuscript **HDA-MoE** (HDA-MoE: Hybrid Parallelism and Dynamic, Adaptive Scheduling for Mixture-of-Experts with 3D Near-Memory Processing). The work is a **journal extension** of **HD-MoE** presented at **IEEE/ACM ICCAD 2025**.
 
-#### 创建并激活conda环境
+**Related links**
+
+- ICCAD 2025 code release (conference version): [code](https://github.com/angerybob/HD-MoE)  
+- ICCAD 2025 paper (IEEE Xplore): [paper](https://ieeexplore.ieee.org/abstract/document/11240984)
+
+## Paper overview
+
+Mixture-of-Experts (MoE) large language models improve efficiency but remain sensitive to **memory bandwidth** and **parallel mapping** on distributed near-memory systems. This line of work studies **MoE inference on 3D near-memory processing (3D NMP)** and proposes:
+
+1. **Offline hybrid parallel mapping** — combining **tensor parallelism (TP)** and **expert parallelism (EP)** to balance compute load and communication.  
+2. **Online dynamic scheduling** — adapting to **time-varying expert activation** (e.g., pre-broadcast and prediction-aware schedules).  
+3. **Hardware-aware gating** — routing experts using a policy that reflects **compute capability** and **interconnect bandwidth**, so gating decisions align with the deployed hardware.
+
+The TCAD manuscript extends the ICCAD HD-MoE study with the above **hardware-aware gating** angle and the corresponding **accuracy** and **latency** evaluations reported in the paper.
+
+## What this repository implements
+
+| Topic | Location / mechanism |
+|--------|----------------------|
+| **Hybrid parallel deployment** (node–link balance, placement generation) | `optimizer.sh` → `simulator.py`; core optimizer in `node_allocation.py` (`MoE3DPNMOptimizer`) |
+| **Dynamic scheduling** (evaluation vs static / predicted routing) | `evaluation/scripts/dynamic.py`, and related drivers |
+| **Hardware-aware gating** (simulation + trace pipeline) | `evaluation/scripts/simulate_hd_gating_from_scores.py`, `trace_gating_softmax_to_npz.py`, `fastchat/fastchat/llm_judge/moe_gating_hd.py`, plus `e2e_hda.py` / `e2e_hda.py`, `adaptive.py`, etc. |
+
+**Hybrid baseline (comparison in experiments)**  
+The directory [`hybrid_baseline/`](hybrid_baseline/) holds scripts used to generate **hybrid-baseline** deployment strategies for evaluation (e.g. compute-balance–only placement). **`hybrid_baseline/comp_bal.sh`** and **`hybrid_baseline/gen_comp_balance.py`** currently contain **machine-specific paths** (`sys.path`, log/result directories); **edit them** to point at your checkout (e.g. this repo’s root so `node_allocation` resolves, and your desired `logs/` / `results/` locations).
+
+**HumanEval accuracy**  
+[`human-eval/`](human-eval/) is a fork of the official [openai/human-eval](https://github.com/openai/human-eval) harness, extended with helpers for our answer format. See [`human-eval/EVAL_HUMANEVAL.md`](human-eval/EVAL_HUMANEVAL.md) for converting outputs and running `evaluate_functional_correctness`.
+
+**Task accuracy with hardware-aware gating (MT-Bench, GSM8K, ARC, etc.)**  
+[`fastchat/`](fastchat/) is based on [lm-sys/FastChat](https://github.com/lm-sys/FastChat) with changes for **MoE trace collection** and **hardware-aware gating** during generation. See [`fastchat/fastchat/llm_judge/README.md`](fastchat/fastchat/llm_judge/README.md) (section *Hardware-aware gating accuracy*).
+
+**Other evaluations and figures**  
+[`evaluation/`](evaluation/) contains placement utilities, plotting scripts under `evaluation/draw/`, and documented entry points under [`evaluation/scripts/`](evaluation/scripts/README.md).
+
+## Quick start
+
+### 1. Environment
+
 ```bash
-# 创建环境
 conda create -n tcad python=3.10
-# 激活环境
 conda activate tcad
 ```
 
-#### 克隆仓库并安装依赖
+Clone **this** repository and initialize submodules (`fastchat`, `human-eval`):
+
 ```bash
-# 克隆仓库
-git clone --recursive git@github.com:angerybob/TCAD.git
-# 进入仓库目录
+git clone --recursive <your-tcad-repo-url> TCAD
 cd TCAD
-# 安装依赖
+# If you already cloned without --recursive:
+git submodule update --init --recursive
+```
+
+Install PyTorch (match your CUDA stack if needed), then root dependencies:
+
+```bash
 pip install torch==2.6.0 torchaudio==2.6.0 torchvision==0.21.0
 pip install -r requirements.txt
+```
+
+Install the FastChat subtree:
+
+```bash
 cd fastchat
 pip install -e ".[model_worker,llm_judge]"
+cd ..
 ```
 
-### 2. 获得专家激活数据与adaptive gating
+**Note:** `node_allocation.py` uses **Gurobi** (`gurobipy` in `requirements.txt`). You need a valid **Gurobi license** for placement optimization.
+
+### 2. Generate hybrid parallel deployment strategies
+
+From the **repository root**, `optimizer.sh` launches **parallel** jobs that run `simulator.py` **per layer** (configurable `MAX_JOBS`, `comp`, `BW`, `batch`, `mesh_shapeX` / `mesh_shapeY`, `model`, and `layer_id` range). Example:
 
 ```bash
-cd fastchat/fastchat/llm_judge
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python3 gen_model_answer.py --model-path /opt/pretrained_models/DeepSeek-V2-Lite-Chat --model-id 66666 --num-gpus-per-model 8 --num-gpus-total 8
-# or
-CUDA_VISIBLE_DEVICES=2 python3 gen_model_answer.py --model-path /opt/pretrained_models/DeepSeek-V2-Lite-Chat --model-id 66666 --num-gpus-per-model 1 --num-gpus-total 1
-```
-`--num-gpus-per-model`：一个模型放在几张卡上（张量并行维度）
-
-`--num-gpus-total`：一共几张卡（对应`CUDA_VISIBLE_DEVICES`一共几个编号）
-
-`--num-gpus-total/--num-gpus-per-model`：数据并行维度
-
-`fastchat/fastchat/llm_judge/modeling_deepseek.py`中是具体的推理流程
-
-跑出来的trace放在`expert_trace/ds/adaptive`目录下，具体命名可以在`fastchat/fastchat/llm_judge/gen_model_answer.py`修改相关代码
-
-修改不同batch需要在两个地方同时修改
-
-`fastchat/fastchat/llm_judge/gen_model_answer.py`中：
-```python
-prompt = conv.get_prompt()
-batch = 32
-inputs = tokenizer([prompt]*batch,return_tensors="pt",padding=True)
+# Optional: run in background and log
+nohup bash optimizer.sh > script.log 2>&1 &
 ```
 
-`fastchat/fastchat/llm_judge/modeling_deepseek.py`中：
-```python
-if scores.shape[0]==32:
+**Outputs**
+
+- Strategy artifacts: under `results/` (see `RESULT_DIR` in `optimizer.sh`).  
+- Per-layer logs: under `logs/` (see `LOG_DIR` in `optimizer.sh`).
+
+**Configuration**
+
+Edit `optimizer.sh` for hardware (`comp`, `BW`), mesh (`mesh_shapeX`, `mesh_shapeY`), workload (`batch`), model name (`model`), and the **`for layer_id in {0..N}`** range so **N matches the MoE layer count** of your target model (e.g. Qwen-style configs use a different depth than Mixtral).
+
+### 3. Evaluate deployments, dynamic scheduling, and HDA gating
+
+Run scripts from the repo root (or as documented); many tools resolve `expert_trace/` and `results/` via flags such as `--cwd` and `--deployment-root`. **Authoritative examples** are in [`evaluation/scripts/README.md`](evaluation/scripts/README.md).
+
+
+## Core modules (repo root)
+
+- **`node_allocation.py`** — `MoE3DPNMOptimizer` and node–link balance optimization.  
+- **`simulator.py`** — layer-wise simulation and optimization driver for 3D NMP MoE inference (compute + communication modeling).  
+- **`baseline.py`** — baselines (TP, EP, hybrid TP–EP) for comparison.  
+- **`expert_trace/`** — expert activation / gating statistics for supported models (e.g. Mixtral, DeepSeek, Qwen); add traces here to study new models.
+
+## Supported models and datasets
+
+- **Models:** MoE LLMs supported by the bundled traces and FastChat paths (e.g. Qwen, Mixtral, DeepSeek); extend by adding traces under `expert_trace/` and wiring models in the FastChat / eval scripts.  
+- **Datasets:** MT-Bench-style multi-turn evaluation via FastChat; code benchmarks (HumanEval) via `human-eval/`; additional sets (GSM8K, ARC, etc.) as described in `fastchat/fastchat/llm_judge/README.md`.
+
+## Citation
+
+If you use this code, please cite the **TCAD** manuscript when available, and the **ICCAD 2025** HD-MoE paper:
+
+```bibtex
+@INPROCEEDINGS{11240984,
+  author={Huang, Haochen and Zhong, Shuzhang and Zhang, Zhe and Li, Shuangchen and Niu, Dimin and Zheng, Hongzhong and Wang, Runsheng and Li, Meng},
+  booktitle={2025 IEEE/ACM International Conference On Computer Aided Design (ICCAD)}, 
+  title={HD-MoE: Hybrid and Dynamic Parallelism for Mixture-of-Expert LLMs with 3D Near-Memory Processing}, 
+  year={2025},
+  volume={},
+  number={},
+  pages={1-9},
+  keywords={Costs;Three-dimensional displays;Tensors;Computational modeling;Memory management;Bandwidth;Parallel processing;Dynamic scheduling;Distance measurement;Computational efficiency;Automated Deployment;Mixture-of-Experts;3D Near-Memory Processing},
+  doi={10.1109/ICCAD66269.2025.11240984}}
 ```
 
-adaptive gating 的两个超参数：
-`fastchat/fastchat/llm_judge/modeling_deepseek.py`
-```python
-reward_comp = -1e3
-reward_comm = -5e-5
-```
+Also cite the **IEEE ICCAD 2025** proceedings entry as appropriate: [IEEE Xplore 11240984](https://ieeexplore.ieee.org/abstract/document/11240984).
 
-adaptive gating 的评估可以在`evaluation/scripts/adaptive.py`的基础上修改
+## License
 
-### 3. 生成部署策略（Generate Deployment Strategy）
-
-通过优化脚本生成针对特定硬件和模型的部署策略，后台运行并输出日志：
-```bash
-nohup optimizer.sh > script.log 2>&1 &
-```
-
-- **输出位置**：
-  - 部署策略结果：`results/` 文件夹
-  - 每层输出日志：`logs/` 文件夹
-
-- **参数配置**：
-  可在 `optimizer.sh` 中修改以下配置以适配不同场景：
-  ```bash
-  # 硬件配置
-  comp=10.0          # 算力（TFLOPS）
-  BW=25.0            # 带宽（GB/s）
-  mesh_shapeX=4      # 2D mesh X维度尺寸
-  mesh_shapeY=8      # 2D mesh Y维度尺寸
-  # 任务配置
-  batch=128          # 批次大小
-  model="qwen"       # 模型类型（如"qwen"、"mixtral"等）
-  ```
-  脚本中for循环的层数也要根据模型具体配置修改 
-
-### 4. 评估部署策略（Evaluate Deployment Strategy）
-
-使用评估脚本验证部署策略的性能，支持端到端 latency、消融实验和动态调度评估：
-
-共享模块 **`evaluation/moe_placement_utils.py`**：专家并行（EP）放置矩阵、随机 mesh 放置、以及 `comp_overhead` / `mem_overhead` 等解析式（被多个评估脚本 `import`）。
-
-#### 评估命令
-在仓库根目录执行（或通过各脚本的 `--cwd` / `--deployment-root` 指向数据根目录）。使用 `--help` 查看算力、带宽、mesh、`results-json` 等参数。
-
-```bash
-# 评估端到端 TBT
-python evaluation/scripts/e2e.py
-
-# 硬件感知路由端到端（默认输出 evaluation/results/result_hda_e2e4.json）
-python evaluation/scripts/e2e_hda.py
-
-# 消融实验
-python evaluation/scripts/ablation.py
-
-# 动态调度 / 预测专家 trace（result2_dynamic.json）
-python evaluation/scripts/dynamic.py
-
-# Adaptive routing trace (appends to evaluation/results/result_adaptive.json; see adaptive.py --help)
-python evaluation/scripts/adaptive.py
-
-# sim：deployment 目录下的 trace + NPZ（默认 --deployment-root 见 sim.py --help）
-python evaluation/scripts/sim.py
-```
-
-- **评估结果位置**：默认仍在 `evaluation/results/`（可用各脚本的 `--results-json` 覆盖）。
-- **评估前配置**：CLI 参数需与生成部署 / trace 时使用的算力、带宽、模型与数据集一致。
-
-
-### 5. 结果可视化（Visualization）
-
-通过绘图脚本将评估结果可视化，生成与论文对应的关键图表：
-
-```bash
-# 绘制不同硬件配置下的端到端加速比（对应Fig. 8）
-python evaluation/draw/draw.py
-
-# 绘制不同mesh尺寸下的性能（对应Fig. 9）
-python evaluation/draw/draw_mesh.py
-
-# 绘制节点平衡优化的加速比（对应Fig. 10）
-python evaluation/draw/ablation_draw.py
-
-# 绘制节点平衡对计算延迟的优化（对应Fig. 11）
-python evaluation/draw/ablation2_draw.py
-
-# 绘制节点级资源利用平衡（对应Fig. 12）
-python evaluation/draw/balance.py
-
-# 绘制链路平衡优化的加速比（对应Fig. 13）
-python evaluation/draw/ablation3_draw.py
-
-# 绘制链路级资源利用平衡（对应Fig. 14）
-python evaluation/draw/balance2.py
-
-# 绘制动态调度策略性能（对应Fig. 15 (a)）
-python evaluation/draw/dynamic_draw.py
-
-# 绘制不同预广播专家数量下的动态调度性能（对应Fig. 15 (b)）
-python evaluation/draw/dynamic_draw2.py
-```
-
-- **图表输出位置**：`evaluation/figs/` 文件夹
-
-
-## 核心模块说明（Core Modules）
-
-- **`node_allocation.py`**：实现 `MoE3DPNMOptimizer` 类，封装了文章中提出的Node-Link Balance优化算法。
-
-- **`simulator.py`**：主要优化流程实现，模拟3D NMP架构下的MoE推理过程，包含计算与通信开销建模。
-
-- **`baseline.py`**：提供基线策略（TP、EP、混合TP-EP）的实现，用于快速对比优化结果。
-
-- **`expert_trace/`**：存储不同模型（如Mixtral、DeepSeek等）的专家激活统计数据，用于部署策略的生成与优化。
-
-
-## 支持的模型与数据集（Supported Models & Datasets）
-
-- **模型**：支持MoE架构模型（如Qwen、Mixtral、DeepSeek等），可通过 `expert_trace/` 中的专家激活数据扩展新模型。
-- **数据集**：默认使用MT Bench数据集（广泛用于LLM性能评估），可在评估脚本中替换为其他数据集。
-
+This repository is licensed under the MIT License — see [`LICENSE`](LICENSE). Submodule trees retain their own terms: [`fastchat/LICENSE`](fastchat/LICENSE) (Apache-2.0) and [`human-eval/LICENSE`](human-eval/LICENSE) (MIT, OpenAI).
