@@ -1,4 +1,4 @@
-# TCAD / HDA-MoE — Source Code
+# HDA-MoE: Hybrid Parallelism and Dynamic, Adaptive Scheduling for Mixture-of-Experts with 3D Near-Memory Processing
 
 This repository contains the **source code** for the **TCAD** journal manuscript **HDA-MoE** (HDA-MoE: Hybrid Parallelism and Dynamic, Adaptive Scheduling for Mixture-of-Experts with 3D Near-Memory Processing). The work is a **journal extension** of **HD-MoE** presented at **IEEE/ACM ICCAD 2025**.
 
@@ -66,6 +66,7 @@ Install the FastChat subtree:
 
 ```bash
 cd fastchat
+git checkout adaptive_gating
 pip install -e ".[model_worker,llm_judge]"
 cd ..
 ```
@@ -124,7 +125,6 @@ If you use this code, please cite the **TCAD** manuscript when available, and th
   doi={10.1109/ICCAD66269.2025.11240984}}
 ```
 
-Also cite the **IEEE ICCAD 2025** proceedings entry as appropriate: [IEEE Xplore 11240984](https://ieeexplore.ieee.org/abstract/document/11240984).
 
 ## License
 
