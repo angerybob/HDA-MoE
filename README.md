@@ -42,15 +42,15 @@ The directory [`hybrid_baseline/`](hybrid_baseline/) holds scripts used to gener
 ### 1. Environment
 
 ```bash
-conda create -n tcad python=3.10
-conda activate tcad
+conda create -n hda python=3.10
+conda activate hda
 ```
 
 Clone **this** repository and initialize submodules (`fastchat`, `human-eval`):
 
 ```bash
-git clone --recursive <your-tcad-repo-url> TCAD
-cd TCAD
+git clone --recursive git@github.com:angerybob/HDA-MoE.git
+cd HDA-MoE
 # If you already cloned without --recursive:
 git submodule update --init --recursive
 ```
