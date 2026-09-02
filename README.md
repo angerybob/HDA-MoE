@@ -1,131 +1,182 @@
-# HDA-MoE: Hybrid Parallelism and Dynamic, Adaptive Scheduling for Mixture-of-Experts with 3D Near-Memory Processing
+<p align="center">
+  <img src="media/hda-moe/social-preview.png" alt="HDA-MoE - IEEE TCAD accepted" width="100%">
+</p>
 
-This repository contains the **source code** for the **TCAD** journal manuscript **HDA-MoE** (HDA-MoE: Hybrid Parallelism and Dynamic, Adaptive Scheduling for Mixture-of-Experts with 3D Near-Memory Processing). The work is a **journal extension** of **HD-MoE** presented at **IEEE/ACM ICCAD 2025**.
+<p align="center">
+  <a href="https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=43"><img src="https://img.shields.io/badge/IEEE%20TCAD-Accepted-0A7C66?style=flat-square" alt="IEEE TCAD Accepted"></a>
+  <a href="https://ieeexplore.ieee.org/document/11240984"><img src="https://img.shields.io/badge/ICCAD%202025-HD--MoE-4C6EF5?style=flat-square" alt="HD-MoE at ICCAD 2025"></a>
+  <img src="https://img.shields.io/badge/Python-3.10-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.10">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-F3A712?style=flat-square" alt="MIT License"></a>
+</p>
 
-**Related links**
+<p align="center">
+  <strong>Hybrid Parallelism and Dynamic, Adaptive Scheduling for Mixture-of-Experts with 3D Near-Memory Processing</strong>
+</p>
 
-- ICCAD 2025 code release (conference version): [code](https://github.com/angerybob/HD-MoE)  
-- ICCAD 2025 paper (IEEE Xplore): [paper](https://ieeexplore.ieee.org/abstract/document/11240984)
+<p align="center">
+  Haochen Huang, Shuzhang Zhong, Shengxuan Qiu, Zhe Zhang, Shuangchen Li, Cong Li,<br>
+  Dimin Niu, Hongzhong Zheng, Guangyu Sun, Runsheng Wang, and Meng Li
+</p>
 
-## Paper overview
+<p align="center">
+  &#127881; Accepted by <strong>IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems (TCAD)</strong>.
+</p>
 
-Mixture-of-Experts (MoE) large language models improve efficiency but remain sensitive to **memory bandwidth** and **parallel mapping** on distributed near-memory systems. This line of work studies **MoE inference on 3D near-memory processing (3D NMP)** and proposes:
+HDA-MoE is a deployment and runtime framework for efficient Mixture-of-Experts (MoE) inference on distributed 3D near-memory processing (NMP) systems. It co-optimizes expert placement, on-chip communication, runtime scheduling, and hardware-aware routing so that sparse MoE execution matches the compute, bandwidth, topology, and memory constraints of the target system.
 
-1. **Offline hybrid parallel mapping** — combining **tensor parallelism (TP)** and **expert parallelism (EP)** to balance compute load and communication.  
-2. **Online dynamic scheduling** — adapting to **time-varying expert activation** (e.g., pre-broadcast and prediction-aware schedules).  
-3. **Hardware-aware gating** — routing experts using a policy that reflects **compute capability** and **interconnect bandwidth**, so gating decisions align with the deployed hardware.
+This repository provides the minimal reproducible implementation for the accepted TCAD paper and builds on the conference work [HD-MoE](https://github.com/angerybob/HD-MoE) ([ICCAD 2025 paper](https://ieeexplore.ieee.org/document/11240984)).
 
-The TCAD manuscript extends the ICCAD HD-MoE study with the above **hardware-aware gating** angle and the corresponding **accuracy** and **latency** evaluations reported in the paper.
+## Highlights
 
-## What this repository implements
+- **End-to-end speedup:** 1.1x-3.4x over tensor parallelism, 1.1x-1.5x over expert parallelism, 1.1x-3.7x over compute-balanced hybrid TP-EP, and 1.1x-1.3x over HD-MoE.
+- **Offline system-aware mapping:** jointly balances node computation, communication volume, link contention, and per-node expert-weight capacity.
+- **Online adaptation:** combines hotspot-aware pre-broadcast scheduling with hardware-aware gating for time-varying expert activation.
+- **Broad evaluation:** covers Mixtral, DeepSeek, Qwen2, and Qwen3.5 across Mesh, Torus, and Fat-tree interconnects.
+- **Routing fidelity:** hardware-aware gating retains comparable task accuracy; non-Top-1 boundary substitutions reach 0.949 average output similarity across the four evaluated models.
 
-| Topic | Location / mechanism |
-|--------|----------------------|
-| **Hybrid parallel deployment** (node–link balance, placement generation) | `optimizer.sh` → `simulator.py`; core optimizer in `node_allocation.py` (`MoE3DPNMOptimizer`) |
-| **Dynamic scheduling** (evaluation vs static / predicted routing) | `evaluation/scripts/dynamic.py`, and related drivers |
-| **Hardware-aware gating** (simulation + trace pipeline) | `evaluation/scripts/simulate_hd_gating_from_scores.py`, `trace_gating_softmax_to_npz.py`, `fastchat/fastchat/llm_judge/moe_gating_hd.py`, plus `e2e_hda.py` / `e2e_hda.py`, `adaptive.py`, etc. |
+## How HDA-MoE works
 
-**Hybrid baseline (comparison in experiments)**  
-The directory [`hybrid_baseline/`](hybrid_baseline/) holds scripts used to generate **hybrid-baseline** deployment strategies for evaluation (e.g. compute-balance–only placement). **`hybrid_baseline/comp_bal.sh`** and **`hybrid_baseline/gen_comp_balance.py`** currently contain **machine-specific paths** (`sys.path`, log/result directories); **edit them** to point at your checkout (e.g. this repo’s root so `node_allocation` resolves, and your desired `logs/` / `results/` locations).
+1. **Node Balance** formulates hybrid TP-EP expert placement as a capacity-aware linear program to reduce computation imbalance and communication volume.
+2. **Link Balance** maps logical placements to physical nodes with topology-aware Bayesian optimization, reducing link congestion on Mesh, Torus, and Fat-tree networks.
+3. **Dynamic Scheduling** predicts short-term expert hotspots and pre-broadcasts high-priority experts without adding token communication.
+4. **Hardware-aware Gating** regularizes low-impact routing choices with marginal computation and communication costs while preserving the original routing weights.
 
-**HumanEval accuracy**  
-[`human-eval/`](human-eval/) is a fork of the official [openai/human-eval](https://github.com/openai/human-eval) harness, extended with helpers for our answer format. See [`human-eval/EVAL_HUMANEVAL.md`](human-eval/EVAL_HUMANEVAL.md) for converting outputs and running `evaluate_functional_correctness`.
+## Overview
 
-**Task accuracy with hardware-aware gating (MT-Bench, GSM8K, ARC, etc.)**  
-[`fastchat/`](fastchat/) is based on [lm-sys/FastChat](https://github.com/lm-sys/FastChat) with changes for **MoE trace collection** and **hardware-aware gating** during generation. See [`fastchat/fastchat/llm_judge/README.md`](fastchat/fastchat/llm_judge/README.md) (section *Hardware-aware gating accuracy*).
+<p align="center">
+  <img src="media/hda-moe/overview.png" alt="Overview of the HDA-MoE framework" width="850">
+</p>
 
-**Other evaluations and figures**  
-[`evaluation/`](evaluation/) contains placement utilities, plotting scripts under `evaluation/draw/`, and documented entry points under [`evaluation/scripts/`](evaluation/scripts/README.md).
+HDA-MoE first generates an offline hybrid deployment that balances logical work and physical network traffic. At runtime, dynamic scheduling increases the available hardware supply for emerging hotspots, while hardware-aware gating reduces routing demand that would otherwise create new compute or communication bottlenecks.
+
+## Results at a glance
+
+<p align="center">
+  <img src="media/hda-moe/results-at-a-glance.png" alt="HDA-MoE end-to-end speedup ranges" width="100%">
+</p>
+
+The figure summarizes the end-to-end time-between-token speedup ranges reported in the accepted paper across evaluated models, hardware configurations, mesh sizes, and interconnect topologies. Hardware-aware routing maintains comparable accuracy to the original gating policy.
+
+## What is new over HD-MoE?
+
+| Area | HD-MoE (ICCAD 2025) | HDA-MoE (TCAD) |
+|---|---|---|
+| Hybrid deployment | Node- and link-balanced placement | Capacity-aware placement with expanded system modeling |
+| Runtime scheduling | Dynamic expert pre-broadcast | Dynamic scheduling plus adaptive routing |
+| Expert routing | Original model gating | Hardware-aware computation and communication penalties |
+| Interconnect scope | Mesh-oriented evaluation | Mesh, Torus, and Fat-tree simulation |
+| Model fidelity | Performance-centered evaluation | Accuracy, routing retention, output similarity, KL, and perplexity analyses |
+| Evaluation scope | Conference baselines and workloads | HD-MoE comparison, Qwen3.5, latency breakdown, scalability, and sensitivity studies |
+
+## Repository map
+
+| Component | Entry point | Purpose |
+|---|---|---|
+| Hybrid placement | `simulator.py`, `node_allocation.py` | Capacity-aware Node Balance and topology-aware Link Balance |
+| Network model | `topology.py` | Mesh, Torus, and Fat-tree routing and link accounting |
+| End-to-end evaluation | `evaluation/scripts/e2e_hda.py` | Compare TP, EP, hybrid, HD-MoE, and HDA-MoE latency |
+| Gating replay | `evaluation/scripts/simulate_hd_gating_from_scores.py` | Replay hardware-aware gating from saved softmax traces |
+| Trace conversion | `evaluation/scripts/trace_gating_softmax_to_npz.py` | Convert collected full-softmax traces to the replay format |
+| Routing fidelity | `evaluation/scripts/routing_fidelity.py` | Measure expert substitutability and output perturbation |
+| Model integration | `fastchat/fastchat/llm_judge/moe_gating_hd.py` | Shared HDA routing used during model inference |
 
 ## Quick start
 
-### 1. Environment
+### Installation
 
 ```bash
-conda create -n hda python=3.10
-conda activate hda
-```
-
-Clone **this** repository and initialize submodules (`fastchat`, `human-eval`):
-
-```bash
-git clone --recursive git@github.com:angerybob/HDA-MoE.git
+git clone --recursive https://github.com/angerybob/HDA-MoE.git
 cd HDA-MoE
-# If you already cloned without --recursive:
-git submodule update --init --recursive
-```
 
-Install PyTorch (match your CUDA stack if needed), then root dependencies:
+conda create -n hda-moe python=3.10 -y
+conda activate hda-moe
 
-```bash
-pip install torch==2.6.0 torchaudio==2.6.0 torchvision==0.21.0
+# Select the PyTorch build that matches your CUDA environment.
+pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0
 pip install -r requirements.txt
+pip install -e "./fastchat[model_worker,llm_judge]"
 ```
 
-Install the FastChat subtree:
+The placement optimizer requires a valid [Gurobi](https://www.gurobi.com/) license. Gating replay and evaluation from the bundled artifacts can run without solving a new placement.
+
+### Reproduce a bundled hardware-aware gating replay
+
+The following command replays one Qwen2 layer at 5 TFLOPS and 50 GB/s. Small `--hd-comp` and `--hd-bw` values are interpreted as TFLOPS and GB/s, respectively.
 
 ```bash
-cd fastchat
-git checkout adaptive_gating
-pip install -e ".[model_worker,llm_judge]"
-cd ..
+python evaluation/scripts/simulate_hd_gating_from_scores.py \
+  --scores-npz expert_trace/qwen/score/gating_score_reasoning.npz \
+  --output-json /tmp/hda_qwen_replay.json \
+  --model-name qwen --top-k 8 --layers 0 \
+  --reward-comp -18000 --reward-comm -0.0001 \
+  --hd-mesh-rows 4 --hd-mesh-cols 8 \
+  --hd-comp 5 --hd-bw 50 --chunk-size 32 --device cpu
 ```
 
-**Note:** `node_allocation.py` uses **Gurobi** (`gurobipy` in `requirements.txt`). You need a valid **Gurobi license** for placement optimization.
-
-### 2. Generate hybrid parallel deployment strategies
-
-From the **repository root**, `optimizer.sh` launches **parallel** jobs that run `simulator.py` **per layer** (configurable `MAX_JOBS`, `comp`, `BW`, `batch`, `mesh_shapeX` / `mesh_shapeY`, `model`, and `layer_id` range). Example:
+### Run an end-to-end topology evaluation
 
 ```bash
-# Optional: run in background and log
-nohup bash optimizer.sh > script.log 2>&1 &
+python evaluation/scripts/e2e_hda.py \
+  --cwd . --model ds --batch 32 \
+  --mesh 4 8 --comp 5 --bw 50 --topology mesh \
+  --results-json /tmp/hda_e2e.json
 ```
 
-**Outputs**
+Change `--topology` to `torus` or `fat_tree` to exercise the additional interconnect models. For a fresh offline placement, run `simulator.py` for the desired model, layer, hardware setting, topology, and optional `--memory-factor`; `optimizer.sh` is the multi-layer driver.
 
-- Strategy artifacts: under `results/` (see `RESULT_DIR` in `optimizer.sh`).  
-- Per-layer logs: under `logs/` (see `LOG_DIR` in `optimizer.sh`).
+## Reproducibility paths
 
-**Configuration**
+| Paper result | Reproducible path |
+|---|---|
+| Offline Node-Link Balance | `optimizer.sh` -> `simulator.py` -> `node_allocation.py` |
+| Mesh/Torus/Fat-tree comparison | `evaluation/scripts/e2e_hda.py --topology ...` |
+| Hardware-aware gating replay | `trace_gating_softmax_to_npz.py` -> `simulate_hd_gating_from_scores.py` |
+| Inference-time HDA gating | FastChat `gen_model_answer.py` with the HDA options implemented in `moe_gating_hd.py` |
+| Routing fidelity and substitutability | `evaluation/scripts/routing_fidelity.py` |
+| HumanEval functional correctness | Bundled `human-eval` submodule |
 
-Edit `optimizer.sh` for hardware (`comp`, `BW`), mesh (`mesh_shapeX`, `mesh_shapeY`), workload (`batch`), model name (`model`), and the **`for layer_id in {0..N}`** range so **N matches the MoE layer count** of your target model (e.g. Qwen-style configs use a different depth than Mixtral).
+The repository includes the routing traces and placement artifacts required by the bundled evaluations. Checkpoint-dependent fidelity evaluation requires the corresponding Hugging Face model checkpoint and is intentionally kept separate from the code release.
 
-### 3. Evaluate deployments, dynamic scheduling, and HDA gating
+## Paper and citation
 
-Run scripts from the repo root (or as documented); many tools resolve `expert_trace/` and `results/` via flags such as `--cwd` and `--deployment-root`. **Authoritative examples** are in [`evaluation/scripts/README.md`](evaluation/scripts/README.md).
+**HDA-MoE: Hybrid Parallelism and Dynamic, Adaptive Scheduling for Mixture-of-Experts with 3D Near-Memory Processing**<br>
+Haochen Huang, Shuzhang Zhong, Shengxuan Qiu, Zhe Zhang, Shuangchen Li, Cong Li, Dimin Niu, Hongzhong Zheng, Guangyu Sun, Runsheng Wang, and Meng Li.<br>
+Accepted by *IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems*.
 
-
-## Core modules (repo root)
-
-- **`node_allocation.py`** — `MoE3DPNMOptimizer` and node–link balance optimization.  
-- **`simulator.py`** — layer-wise simulation and optimization driver for 3D NMP MoE inference (compute + communication modeling).  
-- **`baseline.py`** — baselines (TP, EP, hybrid TP–EP) for comparison.  
-- **`expert_trace/`** — expert activation / gating statistics for supported models (e.g. Mixtral, DeepSeek, Qwen); add traces here to study new models.
-
-## Supported models and datasets
-
-- **Models:** MoE LLMs supported by the bundled traces and FastChat paths (e.g. Qwen, Mixtral, DeepSeek); extend by adding traces under `expert_trace/` and wiring models in the FastChat / eval scripts.  
-- **Datasets:** MT-Bench-style multi-turn evaluation via FastChat; code benchmarks (HumanEval) via `human-eval/`; additional sets (GSM8K, ARC, etc.) as described in `fastchat/fastchat/llm_judge/README.md`.
-
-## Citation
-
-If you use this code, please cite the **TCAD** manuscript when available, and the **ICCAD 2025** HD-MoE paper:
+The DOI and final IEEE Xplore link will be added after online publication. Until then, please use the accepted-manuscript citation:
 
 ```bibtex
-@INPROCEEDINGS{11240984,
-  author={Huang, Haochen and Zhong, Shuzhang and Zhang, Zhe and Li, Shuangchen and Niu, Dimin and Zheng, Hongzhong and Wang, Runsheng and Li, Meng},
-  booktitle={2025 IEEE/ACM International Conference On Computer Aided Design (ICCAD)}, 
-  title={HD-MoE: Hybrid and Dynamic Parallelism for Mixture-of-Expert LLMs with 3D Near-Memory Processing}, 
-  year={2025},
-  volume={},
-  number={},
-  pages={1-9},
-  keywords={Costs;Three-dimensional displays;Tensors;Computational modeling;Memory management;Bandwidth;Parallel processing;Dynamic scheduling;Distance measurement;Computational efficiency;Automated Deployment;Mixture-of-Experts;3D Near-Memory Processing},
-  doi={10.1109/ICCAD66269.2025.11240984}}
+@article{huang2026hdamoe,
+  author  = {Haochen Huang and Shuzhang Zhong and Shengxuan Qiu and Zhe Zhang and
+             Shuangchen Li and Cong Li and Dimin Niu and Hongzhong Zheng and
+             Guangyu Sun and Runsheng Wang and Meng Li},
+  title   = {{HDA-MoE}: Hybrid Parallelism and Dynamic, Adaptive Scheduling for
+             Mixture-of-Experts with 3D Near-Memory Processing},
+  journal = {IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems},
+  year    = {2026},
+  note    = {Accepted}
+}
 ```
 
+The conference predecessor is:
+
+```bibtex
+@inproceedings{huang2025hdmoe,
+  author    = {Haochen Huang and Shuzhang Zhong and Zhe Zhang and Shuangchen Li and
+               Dimin Niu and Hongzhong Zheng and Runsheng Wang and Meng Li},
+  title     = {{HD-MoE}: Hybrid and Dynamic Parallelism for Mixture-of-Expert LLMs
+               with 3D Near-Memory Processing},
+  booktitle = {2025 IEEE/ACM International Conference on Computer-Aided Design (ICCAD)},
+  year      = {2025},
+  pages     = {1--9},
+  doi       = {10.1109/ICCAD66269.2025.11240984}
+}
+```
+
+## Acknowledgements
+
+The model-evaluation path builds on [FastChat](https://github.com/lm-sys/FastChat), and functional-correctness evaluation builds on [HumanEval](https://github.com/openai/human-eval). Their original licenses are preserved in the corresponding submodules.
 
 ## License
 
-This repository is licensed under the MIT License — see [`LICENSE`](LICENSE). Submodule trees retain their own terms: [`fastchat/LICENSE`](fastchat/LICENSE) (Apache-2.0) and [`human-eval/LICENSE`](human-eval/LICENSE) (MIT, OpenAI).
+The HDA-MoE code is released under the [MIT License](LICENSE). The FastChat and HumanEval submodules retain their respective Apache-2.0 and MIT licenses.
