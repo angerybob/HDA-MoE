@@ -33,7 +33,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
-import pdb
 # fastchat package: evaluation/scripts -> TCAD/fastchat
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _TCAD_ROOT = os.path.abspath(os.path.join(_SCRIPT_DIR, "..", ".."))
@@ -171,7 +170,6 @@ def _topk_arrays_to_trace_dict(
     sel: Dict[str, List[List[int]]] = {}
     for lk in layer_keys:
         lid = lk.replace("layer_", "")
-        # pdb.set_trace()
         tb = topk_before[lk]
         ta = topk_after[lk]
         orig[lid] = [row.astype(int).tolist() for row in tb]
@@ -196,6 +194,18 @@ def load_scores_npz(path: str) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
     if not layers:
         raise ValueError(f"no layer_* arrays in npz: {path}")
     return layers, meta
+
+
+def load_layer_reward_scale(path: Optional[str]) -> Dict[int, float]:
+    if not path:
+        return {}
+    with open(os.path.expanduser(path), "r", encoding="utf-8") as f:
+        data = json.load(f)
+    if isinstance(data, dict) and "scale" in data:
+        data = data["scale"]
+    if not isinstance(data, dict):
+        raise ValueError(f"expected JSON dict or {{'scale': dict}} in {path}")
+    return {int(k): float(v) for k, v in data.items()}
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -225,28 +235,37 @@ def main(argv: Optional[List[str]] = None) -> int:
         "--model-name",
         type=str,
         default="qwen",
-        choices=["qwen", "mixtral", "ds"],
+        choices=["qwen", "qwen35", "mixtral", "ds"],
         help="HD_MOE_CONFIGS key (E, P paths, ...)",
     )
     p.add_argument("--reward-comp", type=float, default=0.0)
     p.add_argument("--reward-comm", type=float, default=0.0)
+    p.add_argument(
+        "--layer-reward-scale-json",
+        type=str,
+        default=None,
+        help="Optional layer_id -> scalar map. HDA rewards become reward_* * scale[layer_id].",
+    )
     p.add_argument("--hd-mesh-rows", type=int, default=None)
     p.add_argument("--hd-mesh-cols", type=int, default=None)
-    p.add_argument("--hd-comp", type=float, default=None, help="TFLOPS; overrides default comp")
-    p.add_argument("--hd-bw", type=float, default=None, help="BPS; overrides default BW")
+    p.add_argument(
+        "--hd-comp",
+        type=float,
+        default=None,
+        help="Compute throughput in TFLOPS (or FLOP/s when >= 1e6).",
+    )
+    p.add_argument(
+        "--hd-bw",
+        type=float,
+        default=None,
+        help="Link bandwidth in GB/s (or B/s when >= 1e6).",
+    )
     p.add_argument(
         "--chunk-size",
         type=int,
         default=0,
         help="Tokens per batch. <=0: whole layer one batch (recommended). "
         ">0: stride; each forward sets HD_MOE_BATCH_SIZE to current rows.",
-    )
-    p.add_argument(
-        "--max-tokens",
-        type=int,
-        default=None,
-        metavar="N",
-        help="First N tokens per layer only (debug); default all tokens",
     )
     p.add_argument(
         "--device",
@@ -263,14 +282,16 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     args = p.parse_args(argv)
 
+    if args.hd_comp is not None and args.hd_comp < 1.0e6:
+        args.hd_comp *= 1.0e12
+    if args.hd_bw is not None and args.hd_bw < 1.0e6:
+        args.hd_bw *= 1.0e9
+
     _cmd_argv = argv if argv is not None else sys.argv
     print(f"[cmd] {shlex.join([sys.executable] + _cmd_argv)}", file=sys.stderr)
 
     if not args.output_json and not args.output_npz:
         p.error("specify at least one of --output-json or --output-npz")
-
-    if args.max_tokens is not None and args.max_tokens <= 0:
-        p.error("--max-tokens must be a positive integer or omitted")
 
     mesh = None
     if args.hd_mesh_rows is not None and args.hd_mesh_cols is not None:
@@ -278,6 +299,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     device = _pick_device(args.device)
     layers_mat, scores_meta = load_scores_npz(os.path.expanduser(args.scores_npz))
+    reward_scale_by_layer = load_layer_reward_scale(args.layer_reward_scale_json)
 
     layer_keys = sorted(layers_mat.keys(), key=lambda x: int(x.replace("layer_", "")))
     if args.layers:
@@ -290,21 +312,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     total_ok = total_fail = 0
 
     for lk in layer_keys:
-        mat_full = layers_mat[lk]
-        n_full = int(mat_full.shape[0])
-        mat = (
-            mat_full[: args.max_tokens]
-            if args.max_tokens is not None
-            else mat_full
-        )
+        mat = layers_mat[lk]
         lid = int(lk.replace("layer_", ""))
-        if args.max_tokens is not None and n_full > args.max_tokens:
-            print(
-                f"[layer] {lk} using first {args.max_tokens}/{n_full} tokens, shape={mat.shape} ...",
-                file=sys.stderr,
-            )
-        else:
-            print(f"[layer] {lk} shape={mat.shape} ...", file=sys.stderr)
+        print(f"[layer] {lk} shape={mat.shape} ...", file=sys.stderr)
         # ds: scores npz layer_1..L matches JSON keys "1".."L"; P npz uses in_layer_0..L-1 (e2e layer_id loop).
         # qwen/mixtral npz starts at layer_0; no offset.
         hd_layer_id = lid - 1 if args.model_name == "ds" else lid
@@ -313,14 +323,15 @@ def main(argv: Optional[List[str]] = None) -> int:
                 f"cannot map {lk} to HD layer index for model {args.model_name!r} (hd_layer_id={hd_layer_id}); "
                 "ds score npz should start at layer_1."
             )
+        reward_scale = reward_scale_by_layer.get(hd_layer_id, reward_scale_by_layer.get(lid, 1.0))
         tb, ta, sb, sa, ok, fail = run_layer(
             mat,
             hd_layer_id,
             device,
             args.model_name,
             args.top_k,
-            args.reward_comp,
-            args.reward_comm,
+            args.reward_comp * reward_scale,
+            args.reward_comm * reward_scale,
             args.chunk_size,
             mesh=mesh,
             hd_comp=args.hd_comp,
@@ -342,9 +353,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         "top_k": args.top_k,
         "reward_comp": args.reward_comp,
         "reward_comm": args.reward_comm,
+        "layer_reward_scale_json": os.path.abspath(os.path.expanduser(args.layer_reward_scale_json)) if args.layer_reward_scale_json else None,
+        "layer_reward_scale_layers": len(reward_scale_by_layer),
         "chunk_size": args.chunk_size,
         "chunk_mode": "full_layer" if args.chunk_size <= 0 else f"stride_{args.chunk_size}",
-        "max_tokens_per_layer": args.max_tokens,
         "device": str(device),
         "hd_tokens_applied": total_ok,
         "hd_tokens_fallback": total_fail,

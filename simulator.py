@@ -26,6 +26,16 @@ MODEL_SPECS = {
     "mixtral": ("expert_trace/mixtral/experts_reasoning_mixtral.json", 8, 2, 0, 4096, 14336, False, 32),
     "ds": ("expert_trace/ds/experts_reasoning_ds.json", 64, 6, 0, 2048, 1408, True, 26),
     "qwen": ("expert_trace/qwen/experts_reasoning_qwen.json", 64, 8, 0, 3584, 2560, False, 28),
+    "qwen35": (
+        "expert_trace/qwen35/experts_reasoning_qwen35.json",
+        256,
+        8,
+        0,
+        2048,
+        512,
+        False,
+        40,
+    ),
 }
 
 
@@ -39,10 +49,47 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--mesh-shape", type=int, nargs=2, metavar=("X", "Y"), default=[4, 8])
     p.add_argument("--model", choices=list(MODEL_SPECS.keys()), default="mixtral")
     p.add_argument(
+        "--trace-path",
+        default=None,
+        help="Optional routing trace override. The model default remains unchanged when omitted.",
+    )
+    p.add_argument(
         "--draw-regression",
         action="store_true",
         help="Only plot comm regression samples (skip ILP + BO)",
     )
+    p.add_argument(
+        "--ilp-time-limit",
+        type=int,
+        default=1800,
+        help="Gurobi ILP time limit per layer (seconds)",
+    )
+    p.add_argument(
+        "--ilp-mip-gap",
+        type=float,
+        default=0.05,
+        help="Gurobi MIPGap (relative); lower = tighter ILP solution",
+    )
+    p.add_argument(
+        "--bo-iter",
+        type=int,
+        default=70,
+        help="Bayesian optimization iterations (gp_minimize n_calls)",
+    )
+    p.add_argument(
+        "--bo-initial-points",
+        type=int,
+        default=10,
+        help="Random initial points before GP search in BO",
+    )
+    p.add_argument(
+        "--memory-factor",
+        type=float,
+        default=None,
+        help="Optional per-node expert-weight storage cap as factor * (E/D).",
+    )
+    p.add_argument("--topology", choices=["mesh", "torus", "fat_tree"], default="mesh")
+    p.add_argument("--fat-tree-oversubscription", type=float, default=1.0)
     return p.parse_args()
 
 
@@ -56,7 +103,8 @@ def main() -> None:
     mesh_shape = tuple(args.mesh_shape)
 
     data_path, E, e, SE, h, IS, mlp_first, num_layers = MODEL_SPECS[args.model]
-    trace_path = data_path if os.path.isabs(data_path) else os.path.join(root, data_path)
+    trace_path = args.trace_path or data_path
+    trace_path = trace_path if os.path.isabs(trace_path) else os.path.join(root, trace_path)
 
     print(f"computation throughput (TFLOPS): {comp:.2f}")
     print(f"communication bandwidth (GB/s): {BW:.2f}")
@@ -73,7 +121,6 @@ def main() -> None:
     optimizer = MoE3DPNMOptimizer(
         E=E,
         e=e,
-        SE=SE,
         h=h,
         IS=IS,
         B=batch,
@@ -83,6 +130,8 @@ def main() -> None:
         num_layers=num_layers,
         mlp_first=mlp_first,
         routing_trace=data,
+        topology_type=args.topology,
+        topology_config={"oversubscription": args.fat_tree_oversubscription} if args.topology == "fat_tree" else None,
     )
     folder_path = Path(root) / (
         f"results/reasoning_{args.model}_{optimizer.comp*1e-12:.1f}_TFLOPS_{optimizer.BW*1e-9:.1f}_GBPS_"
@@ -90,21 +139,19 @@ def main() -> None:
     )
 
     if not folder_path.is_dir():
-        print(f"Results directory missing: {folder_path}")
-        sys.exit(1)
+        folder_path.mkdir(parents=True, exist_ok=True)
 
     P_ep = EP_deployment(optimizer.layer, optimizer.E, optimizer.D)
     M_rand = generate_random_placement(optimizer.D, mesh_shape)
+    P_init = P_ep
     x: list[float] = []
     y: list[float] = []
     print("Sampling communication latency for regression...")
 
-    P_init = P_ep
-
     layer_key = str(layer_id + optimizer.mlp_first)
     for b in tqdm(range(256, 512 + 128, 2)):
         raw = random.sample(data[layer_key], b)
-        extra = list(range(optimizer.E - optimizer.SE, optimizer.E))
+        extra = list(range(optimizer.E - SE, optimizer.E))
         random_samples = [list(row) + extra for row in raw]
         comm = optimizer.comm_time_dynamic(P_init, random_samples)[layer_id]
         comm_acc = optimizer.comm_time_acc_dynamic(M_rand, P_init, layer_id, random_samples)
@@ -176,11 +223,18 @@ def main() -> None:
     print(f"EP_computation_dynamic: {ep_comp_dynamic*1e6:.2f} us")
     print(f"EP_latency_dynamic: {(ep_comp_dynamic+ep_comm_dynamic)*1e6:.2f} us")
 
-    P = optimizer.ilp_solver_gurobi(l=layer_id, gamma=slope, time_limit=1800)
+    P = optimizer.ilp_solver_gurobi(
+        l=layer_id,
+        gamma=slope,
+        time_limit=args.ilp_time_limit,
+        mip_gap=args.ilp_mip_gap,
+        memory_factor=args.memory_factor,
+    )
     if P is None:
         print("ILP solver returned no solution; abort.")
         sys.exit(1)
     print("Node balance (ILP) finished.")
+
     comp = optimizer.compute_time(P)[layer_id]
     comm_node, link = optimizer.comm_time_acc(M_rand, P, layer_id)
     comm_node *= 2
@@ -200,8 +254,25 @@ def main() -> None:
     Z = P > 0
     M_init = M_rand
 
-    max_iter = 70
-    M, cost_history = optimizer.optimize_placement_bo(M_init, Z, layer_id, max_iter=max_iter)
+    max_iter = args.bo_iter
+    M, cost_history = optimizer.optimize_placement_bo(
+        M_init,
+        Z,
+        layer_id,
+        max_iter=max_iter,
+        random_state=layer_id,
+        n_initial_points=args.bo_initial_points,
+    )
+    bo_best_s = float(np.min(cost_history)) if len(cost_history) else 0.0
+    bo_init_s = float(cost_history[0]) if len(cost_history) else 0.0
+    if bo_init_s > 0:
+        bo_improve = (1 - bo_best_s / bo_init_s) * 100
+    else:
+        bo_improve = 0.0
+    print(
+        f"BO: {max_iter} iters, comm_acc best {bo_best_s*1e6:.4f} us "
+        f"(init {bo_init_s*1e6:.4f} us, improve {bo_improve:.1f}%)"
+    )
 
     np.savez_compressed(file_path, arr1=P, arr2=M)
 

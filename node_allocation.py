@@ -10,9 +10,25 @@ from collections import defaultdict
 from skopt import gp_minimize
 from skopt.space import Real
 from scipy.optimize import linear_sum_assignment
+from topology import build_topology
 
 class MoE3DPNMOptimizer:
-    def __init__(self, routing_trace, E=64, e=6, h=2048,IS=1408, B=128, D=64, BW=25e9, comp=10e12, num_layers=26, mlp_first=True):
+    def __init__(
+        self,
+        routing_trace,
+        E=64,
+        e=6,
+        h=2048,
+        IS=1408,
+        B=128,
+        D=64,
+        BW=25e9,
+        comp=10e12,
+        num_layers=26,
+        mlp_first=True,
+        topology_type="mesh",
+        topology_config=None,
+    ):
         # Initialize parameters
         self.E = E         # Number of experts
         self.e = e
@@ -38,6 +54,11 @@ class MoE3DPNMOptimizer:
         self.X=8
         self.Y=8
         self.M=np.zeros((self.D,self.X,self.Y))
+        self.topology_type = topology_type
+        self.topology_config = topology_config or {}
+        self.topology = None
+        self._topology_key = None
+        self._route_cost_cache = {}
 
         
     def _find_optimal_aggregator(self):
@@ -151,6 +172,37 @@ class MoE3DPNMOptimizer:
                 current = next_node
             self.route_cache[cache_key] = path
         return self.route_cache[cache_key]
+
+    def _ensure_topology(self):
+        key = (self.topology_type, tuple(sorted(self.topology_config.items())), self.D, self.BW, self.X, self.Y)
+        if self.topology is None or self._topology_key != key:
+            self.topology = build_topology(
+                self.topology_type,
+                self.topology_config,
+                D=self.D,
+                BW=self.BW,
+                x=self.X,
+                y=self.Y,
+            )
+            self._topology_key = key
+            self._route_cost_cache = {}
+
+    def _coord_to_endpoint(self, coord):
+        return int(coord[0]) * int(self.Y) + int(coord[1])
+
+    def _get_topology_path(self, src_coord, dst_coord, flow_id=None):
+        if self.topology_type == "mesh":
+            return self._get_xy_path(src_coord, dst_coord)
+        self._ensure_topology()
+        src_ep = self._coord_to_endpoint(src_coord)
+        dst_ep = self._coord_to_endpoint(dst_coord)
+        return self.topology.get_route(src_ep, dst_ep, flow_id=flow_id)
+
+    def _link_bandwidth(self, link_id):
+        if self.topology_type == "mesh":
+            return self.BW
+        self._ensure_topology()
+        return self.topology.link_bandwidth(link_id)
     
     def _simulate_comm(self,M, layer_data,layer_id,P,chunks=20):
         """Discrete-event simulation for communication time."""
@@ -179,8 +231,8 @@ class MoE3DPNMOptimizer:
             
 
             for p in non_zero_coords:
-                path = self._get_xy_path(p, aggregator)
-                for _ in range(chunks):
+                for chunk_id in range(chunks):
+                    path = self._get_topology_path(p, aggregator, flow_id=(layer_id, str(sublist), p, chunk_id))
                     heappush(event_queue, (0.0, data_size/chunks, path))
 
         # Drain event queue
@@ -196,7 +248,7 @@ class MoE3DPNMOptimizer:
                 continue
                 
             current_link = remaining_path[0]
-            available_bw = self.BW
+            available_bw = self._link_bandwidth(current_link)
             
             # Next free time window on this link
             last_end = 0
@@ -281,8 +333,8 @@ class MoE3DPNMOptimizer:
             
 
             for p in non_zero_coords:
-                path = self._get_xy_path(p, aggregator)
-                for _ in range(chunks):
+                for chunk_id in range(chunks):
+                    path = self._get_topology_path(p, aggregator, flow_id=(layer_id, tuple(sublist), p, chunk_id))
                     heappush(event_queue, (0.0, data_size/chunks, path))
 
  
@@ -297,7 +349,7 @@ class MoE3DPNMOptimizer:
                 continue
                 
             current_link = remaining_path[0]
-            available_bw = self.BW
+            available_bw = self._link_bandwidth(current_link)
             
             last_end = 0
             for start, end in sorted(link_schedule[current_link]):
@@ -378,7 +430,112 @@ class MoE3DPNMOptimizer:
                 expert_idx += num_experts
         return P
     
-    def ilp_solver_gurobi(self, l, gamma=4,time_limit=60):
+    def _add_fattree_io_bandwidth_constraints(self, model, Z, t_comm, l, gamma, comm_per_token):
+        """Extend Eq. (8) with Fat-tree network-node I/O bandwidth constraints."""
+        if self.topology_type not in {"fat_tree", "fattree"}:
+            return
+
+        self._ensure_topology()
+        topology = self.topology
+        if not hasattr(topology, "num_pods"):
+            return
+
+        leaf_endpoints = {}
+        pod_endpoints = {}
+        for endpoint in range(self.D):
+            group = topology.endpoint_group(endpoint)
+            pod = int(group["pod"])
+            leaf = int(group["leaf"])
+            leaf_endpoints.setdefault((pod, leaf), []).append(endpoint)
+            pod_endpoints.setdefault(pod, []).append(endpoint)
+
+        group_keys = list(self.fg[self.e][l].items())
+
+        def active_var(prefix, list_key, group, endpoints):
+            endpoints = tuple(int(ep) for ep in endpoints)
+            var = model.addVar(vtype=GRB.BINARY, name=f"{prefix}_{list_key}_L{l}")
+            active_sum = gp.quicksum(Z[g, ep] for g in group for ep in endpoints)
+            denom = max(1, len(group) * len(endpoints))
+            model.addConstr(var >= active_sum / denom, f"{prefix}_lb_{list_key}_L{l}")
+            model.addConstr(var <= active_sum, f"{prefix}_ub_{list_key}_L{l}")
+            return var
+
+        # Leaf switch node: endpoint-side switching bandwidth and agg-side uplink bandwidth.
+        for (pod, leaf), endpoints in leaf_endpoints.items():
+            endpoint_side_load = 0
+            agg_side_load = 0
+            outside = [ep for ep in range(self.D) if ep not in set(endpoints)]
+            for list_key, freq in group_keys:
+                group = ast.literal_eval(list_key)
+                inside_leaf = active_var(f"FT_leaf_p{pod}_l{leaf}_active", list_key, group, endpoints)
+                endpoint_side_load += freq * inside_leaf
+                if outside:
+                    outside_leaf = active_var(f"FT_leaf_p{pod}_l{leaf}_outside", list_key, group, outside)
+                    uplink = model.addVar(vtype=GRB.BINARY, name=f"FT_leaf_p{pod}_l{leaf}_uplink_{list_key}_L{l}")
+                    model.addConstr(uplink <= inside_leaf, f"FT_leaf_uplink_inside_p{pod}_l{leaf}_{list_key}_L{l}")
+                    model.addConstr(uplink <= outside_leaf, f"FT_leaf_uplink_outside_p{pod}_l{leaf}_{list_key}_L{l}")
+                    model.addConstr(uplink >= inside_leaf + outside_leaf - 1, f"FT_leaf_uplink_lb_p{pod}_l{leaf}_{list_key}_L{l}")
+                    agg_side_load += freq * uplink
+
+            leaf_endpoint_bw = topology.endpoints_per_leaf * topology.endpoint_bw
+            leaf_agg_bw = topology.agg_per_pod * topology.leaf_agg_bw
+            model.addConstr(
+                t_comm >= 4 * gamma * endpoint_side_load * comm_per_token / leaf_endpoint_bw,
+                f"FT_leaf_endpoint_bw_p{pod}_l{leaf}_L{l}",
+            )
+            model.addConstr(
+                t_comm >= 4 * gamma * agg_side_load * comm_per_token / leaf_agg_bw,
+                f"FT_leaf_agg_bw_p{pod}_l{leaf}_L{l}",
+            )
+
+        # Aggregation layer in each pod: leaf-facing side and core-facing side have different capacity.
+        total_core_cross_load = 0
+        for pod, endpoints in pod_endpoints.items():
+            leaf_facing_load = 0
+            core_facing_load = 0
+            outside = [ep for ep in range(self.D) if ep not in set(endpoints)]
+            for list_key, freq in group_keys:
+                group = ast.literal_eval(list_key)
+                active_leaf_count = 0
+                for leaf in range(topology.leaf_per_pod):
+                    leaf_eps = leaf_endpoints[(pod, leaf)]
+                    active_leaf_count += active_var(f"FT_pod_p{pod}_leaf_l{leaf}_active", list_key, group, leaf_eps)
+                # Same-pod multi-leaf traffic is handled by the leaf-facing side of aggregation switches.
+                multi_leaf = model.addVar(vtype=GRB.BINARY, name=f"FT_pod_p{pod}_multi_leaf_{list_key}_L{l}")
+                model.addConstr(multi_leaf <= active_leaf_count, f"FT_pod_multi_leaf_ub1_p{pod}_{list_key}_L{l}")
+                model.addConstr(multi_leaf <= 1, f"FT_pod_multi_leaf_ub2_p{pod}_{list_key}_L{l}")
+                model.addConstr(multi_leaf >= (active_leaf_count - 1) / max(1, topology.leaf_per_pod - 1),
+                                f"FT_pod_multi_leaf_lb_p{pod}_{list_key}_L{l}")
+                leaf_facing_load += freq * multi_leaf
+
+                if outside:
+                    inside_pod = active_var(f"FT_pod_p{pod}_active", list_key, group, endpoints)
+                    outside_pod = active_var(f"FT_pod_p{pod}_outside", list_key, group, outside)
+                    cross_pod = model.addVar(vtype=GRB.BINARY, name=f"FT_pod_p{pod}_core_{list_key}_L{l}")
+                    model.addConstr(cross_pod <= inside_pod, f"FT_pod_core_inside_p{pod}_{list_key}_L{l}")
+                    model.addConstr(cross_pod <= outside_pod, f"FT_pod_core_outside_p{pod}_{list_key}_L{l}")
+                    model.addConstr(cross_pod >= inside_pod + outside_pod - 1, f"FT_pod_core_lb_p{pod}_{list_key}_L{l}")
+                    core_facing_load += freq * cross_pod
+                    total_core_cross_load += freq * cross_pod
+
+            agg_leaf_bw = topology.leaf_per_pod * topology.agg_per_pod * topology.leaf_agg_bw
+            agg_core_bw = topology.agg_per_pod * topology.core_count * topology.agg_core_bw
+            model.addConstr(
+                t_comm >= 4 * gamma * leaf_facing_load * comm_per_token / agg_leaf_bw,
+                f"FT_agg_leaf_bw_p{pod}_L{l}",
+            )
+            model.addConstr(
+                t_comm >= 4 * gamma * core_facing_load * comm_per_token / agg_core_bw,
+                f"FT_agg_core_bw_p{pod}_L{l}",
+            )
+
+        core_bw = topology.core_count * topology.num_pods * topology.agg_core_bw
+        model.addConstr(
+            t_comm >= 4 * gamma * total_core_cross_load * comm_per_token / core_bw,
+            f"FT_core_bw_L{l}",
+        )
+
+    def ilp_solver_gurobi(self, l, gamma=4, time_limit=60, mip_gap=0.05, memory_factor=None):
         """Gurobi MILP for expert placement on this layer."""
         try:
             model = gp.Model("MoE_Expert_Placement")
@@ -415,6 +572,12 @@ class MoE3DPNMOptimizer:
                 model.addConstr(comp_load <= max_comp, f"comp_load_layer_{l}_node_{c}")
                 model.addConstr(comp_load >= 0, f"min_comp_load_layer_{l}_node_{c}")
                 model.addConstr(t_comp >= comp_load*comp_per_expert/self.comp, f"comp_time_layer_{l}_node_{c}")
+                if memory_factor is not None:
+                    avg_mem = self.E / self.D
+                    model.addConstr(
+                        gp.quicksum(P[i,c] for i in range(self.E)) <= memory_factor * avg_mem,
+                        f"memory_load_layer_{l}_node_{c}",
+                    )
             
             print("Begin to add constraint for communication node-balance...")
             comm_per_token=self.B * self.h
@@ -432,11 +595,17 @@ class MoE3DPNMOptimizer:
                     model.addConstr(Y >= devices/len(group), "expert_groups_"+list_key+f"_placed_on_{c}_in_layer_{l}")
                     redundant = freq * Y
                     single_comm += redundant
-                comm_time = 4*gamma*single_comm*comm_per_token / (self.BW)
+                endpoint_bw = self.BW
+                if self.topology_type in {"fat_tree", "fattree"}:
+                    self._ensure_topology()
+                    endpoint_bw = self.topology.endpoint_bw
+                comm_time = 4*gamma*single_comm*comm_per_token / (endpoint_bw)
                 model.addConstr(t_comm >= comm_time, f"comm_time_node_{c}_in_layer_{l}")
+
+            self._add_fattree_io_bandwidth_constraints(model, Z, t_comm, l, gamma, comm_per_token)
             
             model.Params.TimeLimit = time_limit
-            model.Params.MIPGap = 0.05
+            model.Params.MIPGap = mip_gap
             model.Params.Threads = 8
             model.Params.Heuristics = 0.1
             model.optimize()
@@ -596,6 +765,65 @@ class MoE3DPNMOptimizer:
                     
         return total_weight / total_freq if total_freq > 0 else 0
 
+    def evaluate_placement_topology(self, placement, P, layer_id):
+        """Topology-aware MST proxy over co-activated expert groups."""
+        self._ensure_topology()
+        device_coords = {d: np.argwhere(placement[d] == 1)[0] for d in range(self.D)}
+        device_eps = {
+            d: self._coord_to_endpoint(tuple(device_coords[d]))
+            for d in range(self.D)
+        }
+        expert_to_device = [np.where(P[layer_id][e] == 1)[0].tolist() for e in range(self.E)]
+
+        total_weight = 0.0
+        total_freq = 0.0
+        for group_str, freq in self.fg[self.e][layer_id].items():
+            devices = [expert_to_device[e] for e in ast.literal_eval(group_str)]
+            endpoints = sorted(set(device_eps[d] for sublist in devices for d in sublist))
+            if len(endpoints) < 2:
+                continue
+            total_weight += freq * self._calculate_mst_topology(endpoints)
+            total_freq += freq
+        return total_weight / total_freq if total_freq > 0 else 0
+
+    def _route_cost(self, src_ep, dst_ep):
+        if src_ep == dst_ep:
+            return 0.0
+        a, b = sorted((int(src_ep), int(dst_ep)))
+        cache_key = (self._topology_key, a, b)
+        cached = self._route_cost_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        path = self.topology.get_route(src_ep, dst_ep)
+        if not path:
+            return 0.0
+        cost = sum(self.BW / self.topology.link_bandwidth(link) for link in path)
+        self._route_cost_cache[cache_key] = cost
+        return cost
+
+    def _calculate_mst_topology(self, endpoints):
+        edges = []
+        n = len(endpoints)
+        for i in range(n):
+            for j in range(i + 1, n):
+                edges.append((i, j, self._route_cost(endpoints[i], endpoints[j])))
+        edges.sort(key=lambda x: x[2])
+        parent = list(range(n))
+
+        def find(u):
+            while parent[u] != u:
+                parent[u] = parent[parent[u]]
+                u = parent[u]
+            return u
+
+        mst_sum = 0.0
+        for u, v, w in edges:
+            ru, rv = find(u), find(v)
+            if ru != rv:
+                parent[ru] = rv
+                mst_sum += w
+        return mst_sum
+
     def _calculate_mst(self, coords):
         """Kruskal's algorithm for Manhattan MST total length."""
         edges = []
@@ -626,8 +854,17 @@ class MoE3DPNMOptimizer:
         return mst_sum
     
     
-    def optimize_placement_bo(self, initial_placement, P, layer_id, 
-                             max_iter=50, random_state=None):
+    def optimize_placement_bo(
+        self,
+        initial_placement,
+        P,
+        layer_id,
+        max_iter=50,
+        random_state=None,
+        n_initial_points=None,
+        verbose=True,
+        objective_kind="comm",
+    ):
         """
         Bayesian optimization over continuous device coordinates; Hungarian maps to a valid grid.
         :param initial_placement: D x X x Y
@@ -663,17 +900,23 @@ class MoE3DPNMOptimizer:
             for d in range(D):
                 x, y = grid_points[col_ind[d]]
                 placement[d, x, y] = 1
+            if objective_kind == "mst":
+                return self.evaluate_placement(placement, P, layer_id)
+            if objective_kind == "topo_mst":
+                return self.evaluate_placement_topology(placement, P, layer_id)
             result,link=self.comm_time_acc(placement, P, layer_id)
             return result
         
+        n_init = n_initial_points if n_initial_points is not None else min(10, max_iter)
+        n_init = max(1, min(n_init, max_iter))
         result = gp_minimize(
             objective,
             space,
             n_calls=max_iter,
             x0=initial_params,
             random_state=random_state,
-            n_initial_points=min(10, max_iter),
-            verbose=True
+            n_initial_points=n_init,
+            verbose=verbose,
         )
         
         best_params = result.x
@@ -718,7 +961,3 @@ class MoE3DPNMOptimizer:
         latency = alpha * (2 * np.sqrt(self.D) + 2*self.h*self.IS / c)
         bandwidth = beta * k * (2*self.h*self.IS + 2 * c * np.sqrt(self.D))
         return latency + bandwidth
-
-
-
-

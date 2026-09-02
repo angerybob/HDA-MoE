@@ -28,7 +28,29 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
-from reconstruct_expert_scores_from_topk import layers_to_npz_arrays  # noqa: E402
+try:
+    from reconstruct_expert_scores_from_topk import layers_to_npz_arrays  # noqa: E402
+except ModuleNotFoundError:
+    def _flatten_rows(obj: Any) -> list[list[float]]:
+        rows: list[list[float]] = []
+        if isinstance(obj, list):
+            if obj and all(isinstance(x, (int, float)) for x in obj):
+                rows.append([float(x) for x in obj])
+            else:
+                for item in obj:
+                    rows.extend(_flatten_rows(item))
+        return rows
+
+    def layers_to_npz_arrays(layers: Dict[str, Any]) -> Dict[str, np.ndarray]:
+        arrs: Dict[str, np.ndarray] = {}
+        for key, value in layers.items():
+            rows = _flatten_rows(value)
+            if not rows:
+                continue
+            width = len(rows[0])
+            rows = [r for r in rows if len(r) == width]
+            arrs[f"layer_{key}"] = np.asarray(rows, dtype=np.float32)
+        return arrs
 
 
 def _load_gating_softmax_tree(path: str) -> Dict[str, Any]:
