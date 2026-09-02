@@ -24,7 +24,7 @@
 
 HDA-MoE is a deployment and runtime framework for efficient Mixture-of-Experts (MoE) inference on distributed 3D near-memory processing (NMP) systems. It co-optimizes expert placement, on-chip communication, runtime scheduling, and hardware-aware routing so that sparse MoE execution matches the compute, bandwidth, topology, and memory constraints of the target system.
 
-This repository provides the minimal reproducible implementation for the accepted TCAD paper and builds on the conference work [HD-MoE](https://github.com/angerybob/HD-MoE) ([ICCAD 2025 paper](https://ieeexplore.ieee.org/document/11240984)).
+This repository contains the implementation and evaluation workflow for the accepted TCAD paper and builds on the conference work [HD-MoE](https://github.com/angerybob/HD-MoE) ([ICCAD 2025 paper](https://ieeexplore.ieee.org/document/11240984)).
 
 ## Highlights
 
