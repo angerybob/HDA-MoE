@@ -15,7 +15,7 @@
 
 <p align="center">
   Haochen Huang, Shuzhang Zhong, Shengxuan Qiu, Zhe Zhang, Shuangchen Li, Cong Li,<br>
-  Dimin Niu, Hongzhong Zheng, Guangyu Sun, Runsheng Wang, and Meng Li
+  Dimin Niu, Hongzhong Zheng, Guangyu Sun, and Meng Li
 </p>
 
 <p align="center">
@@ -140,7 +140,7 @@ The repository includes the routing traces and placement artifacts required by t
 ## Paper and citation
 
 **HDA-MoE: Hybrid Parallelism and Dynamic, Adaptive Scheduling for Mixture-of-Experts with 3D Near-Memory Processing**<br>
-Haochen Huang, Shuzhang Zhong, Shengxuan Qiu, Zhe Zhang, Shuangchen Li, Cong Li, Dimin Niu, Hongzhong Zheng, Guangyu Sun, Runsheng Wang, and Meng Li.<br>
+Haochen Huang, Shuzhang Zhong, Shengxuan Qiu, Zhe Zhang, Shuangchen Li, Cong Li, Dimin Niu, Hongzhong Zheng, Guangyu Sun, and Meng Li.<br>
 Accepted by *IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems*.
 
 The DOI and final IEEE Xplore link will be added after online publication. Until then, please use the accepted-manuscript citation:
@@ -149,7 +149,7 @@ The DOI and final IEEE Xplore link will be added after online publication. Until
 @article{huang2026hdamoe,
   author  = {Haochen Huang and Shuzhang Zhong and Shengxuan Qiu and Zhe Zhang and
              Shuangchen Li and Cong Li and Dimin Niu and Hongzhong Zheng and
-             Guangyu Sun and Runsheng Wang and Meng Li},
+             Guangyu Sun and Meng Li},
   title   = {{HDA-MoE}: Hybrid Parallelism and Dynamic, Adaptive Scheduling for
              Mixture-of-Experts with 3D Near-Memory Processing},
   journal = {IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems},
